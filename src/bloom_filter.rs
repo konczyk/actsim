@@ -11,7 +11,7 @@ impl ScalableBloomFilter {
     pub fn new() -> Self {
         let target_fpr = 0.01f64;
         Self {
-            filters: vec![BloomFilter::new(1024, -target_fpr.log2().ceil() as usize)],
+            filters: vec![BloomFilter::new(1024, -target_fpr.log2().ceil() as usize, 1)],
             target_fpr,
             growth_factor: 2,
             tightening_ratio: 0.8
@@ -19,7 +19,9 @@ impl ScalableBloomFilter {
     }
 
     pub fn fpr(&self) -> f64 {
-        0.0
+        1.0 - self.filters.iter()
+            .map(|bf| 1.0 - 0.5f64.powi(bf.hashes as i32))
+            .product::<f64>()
     }
 
     pub fn contains<T: Hash>(&self, input: &T) -> bool {
@@ -31,7 +33,7 @@ impl ScalableBloomFilter {
             if let Some(filter) = self.filters.last() {
                 if filter.bits.iter().map(|b| b.count_ones()).sum::<u32>() as f64/filter.size as f64 > 0.5 {
                     self.target_fpr *= self.tightening_ratio;
-                    self.filters.push(BloomFilter::new(filter.size * self.growth_factor, -self.target_fpr.log2().ceil() as usize))
+                    self.filters.push(BloomFilter::new(filter.size * self.growth_factor, -self.target_fpr.log2().ceil() as usize, self.filters.len()+1))
                 }
             }
             let last = self.filters.len() - 1;
@@ -45,24 +47,16 @@ pub struct BloomFilter {
     bits: Vec<u8>,
     size: usize,
     hashes: usize,
+    layer: usize
 }
 
 impl BloomFilter {
-    pub fn new(size: usize, hashes: usize) -> Self {
+    pub fn new(size: usize, hashes: usize, layer: usize) -> Self {
         Self {
             bits: vec![0; (size + 7) >> 3],
             size,
             hashes,
-        }
-    }
-
-    pub fn fpr(&self) -> f64 {
-        if self.size == 0 {
-            1.0
-        } else {
-            let set_bits = self.bits.iter().map(|x| x.count_ones()).sum::<u32>();
-            let p = set_bits as f64 / self.size as f64;
-            p.powi(self.hashes as i32)
+            layer
         }
     }
 
@@ -70,6 +64,7 @@ impl BloomFilter {
         let mut hasher = DefaultHasher::new();
         input.hash(&mut hasher);
         seed.hash(&mut hasher);
+        self.layer.hash(&mut hasher);
         hasher.finish() as usize % self.size
     }
 
@@ -102,7 +97,7 @@ mod tests {
 
     #[test]
     fn test_bf_positive() {
-        let mut bf = BloomFilter::new(1024, 16);
+        let mut bf = BloomFilter::new(1024, 16, 1);
         let input = gen_input(64);
         input.iter().for_each(|i| bf.insert(i));
 
@@ -113,7 +108,7 @@ mod tests {
 
     #[test]
     fn test_bf_negative() {
-        let mut bf = BloomFilter::new(4096, 16);
+        let mut bf = BloomFilter::new(4096, 16, 1);
         let input = gen_input(64);
         input.iter().for_each(|i| bf.insert(i));
 
@@ -141,7 +136,7 @@ mod tests {
         let input = gen_input(256);
         input.iter().for_each(|i| bf.insert(i));
 
-        let neg_input = gen_input(16);
+        let neg_input = gen_input(1);
         for i in neg_input {
             assert_eq!(false, bf.contains(&i), "input {i}");
         }

@@ -1,6 +1,6 @@
 # ADS-B Filter 
 
-Tiny ADS-B filter
+Tiny, scalable ADS-B filter with a near constant false positive ratio.
 
 ## Usage
 
@@ -14,30 +14,24 @@ Run tests
 cargo test
 ```
 
-Execute
-```shell
-$ ./target/release/adsb_filter -h
-Usage: adsb_filter [OPTIONS]
-
-Options:
-      --size <SIZE>      Size of the buffer in bits [default: 1024]
-      --hashes <HASHES>  Number of hash functions to run in the filter [default: 4]
-  -h, --help             Print help
-```
-
 ## Examples
 
 Run the filter against a test data stream
 ```shell
-$ ./adsb_gen.py | ./target/release/tinyadsb --size 128 --hashes 8
-NEW:    0A423C
-NEW:    4B3B46
-NEW:    191EA9
-MATCH:  191EA9 (Est. FPR: 0.0002%)
-NEW:    02EF42
-NEW:    0F7FF6
-MATCH:  4B3B46 (Est. FPR: 0.0049%)
-NEW:    E41E54
-MATCH:  0A423C (Est. FPR: 0.0162%)
+$ ./adsb_gen.py | ./target/release/adsb_filter 
+NEW:    05A48E
+NEW:    A91DDD
+NEW:    31A689
+NEW:    0689BA
+NEW:    504DD1
+MATCH:  A91DDD (Est. FPR: 1.5625%)
+NEW:    105C37
+NEW:    560784
+MATCH:  05A48E (Est. FPR: 1.5625%)
+MATCH:  0689BA (Est. FPR: 1.5625%)
+NEW:    3B36BD
+NEW:    8F2BDD
+MATCH:  560784 (Est. FPR: 1.5625%)
+NEW:    5C893C
 [...]
 ```
