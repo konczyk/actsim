@@ -4,7 +4,7 @@ use std::io::BufRead;
 mod bloom_filter;
 
 fn main() -> io::Result<()>{
-    let mut bf = bloom_filter::BloomFilter::new(1024, 4);
+    let mut bf = bloom_filter::ScalableBloomFilter::new();
 
     let stdin = io::stdin();
     let mut handle = stdin.lock();

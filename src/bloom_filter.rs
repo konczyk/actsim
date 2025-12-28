@@ -1,13 +1,54 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
+pub struct ScalableBloomFilter {
+    filters: Vec<BloomFilter>,
+    target_fpr: f64,
+    growth_factor: usize,
+    tightening_ratio: f64
+}
+
+impl ScalableBloomFilter {
+    pub fn new() -> Self {
+        let target_fpr = 0.01f64;
+        Self {
+            filters: vec![BloomFilter::new(1024, -target_fpr.log2().ceil() as usize)],
+            target_fpr,
+            growth_factor: 2,
+            tightening_ratio: 0.8
+        }
+    }
+
+    pub fn fpr(&self) -> f64 {
+        0.0
+    }
+
+    pub fn contains<T: Hash>(&self, input: &T) -> bool {
+        self.filters.iter().any(|f| f.contains(input))
+    }
+
+    pub fn insert<T: Hash>(&mut self, input: &T) {
+        if !self.contains(input) {
+            if let Some(filter) = self.filters.last() {
+                if filter.bits.iter().map(|b| b.count_ones()).sum::<u32>() as f64/filter.size as f64 > 0.5 {
+                    self.target_fpr *= self.tightening_ratio;
+                    self.filters.push(BloomFilter::new(filter.size * self.growth_factor, -self.target_fpr.log2().ceil() as usize))
+                }
+            }
+            let last = self.filters.len() - 1;
+            self.filters[last].insert(input);
+        }
+    }
+
+}
+
 pub struct BloomFilter {
     bits: Vec<u8>,
     size: usize,
-    hashes: u8,
+    hashes: usize,
 }
 
 impl BloomFilter {
-    pub fn new(size: usize, hashes: u8) -> Self {
+    pub fn new(size: usize, hashes: usize) -> Self {
         Self {
             bits: vec![0; (size + 7) >> 3],
             size,
@@ -25,7 +66,7 @@ impl BloomFilter {
         }
     }
 
-    fn hash<T: Hash>(&self, input: &T, seed: u8) -> usize {
+    fn hash<T: Hash>(&self, input: &T, seed: usize) -> usize {
         let mut hasher = DefaultHasher::new();
         input.hash(&mut hasher);
         seed.hash(&mut hasher);
@@ -60,7 +101,7 @@ mod tests {
     }
 
     #[test]
-    fn test_positive() {
+    fn test_bf_positive() {
         let mut bf = BloomFilter::new(1024, 16);
         let input = gen_input(64);
         input.iter().for_each(|i| bf.insert(i));
@@ -71,14 +112,39 @@ mod tests {
     }
 
     #[test]
-    fn test_negative() {
+    fn test_bf_negative() {
         let mut bf = BloomFilter::new(4096, 16);
-        let input = gen_input(1);
+        let input = gen_input(64);
         input.iter().for_each(|i| bf.insert(i));
 
         let neg_input = gen_input(16);
         for i in neg_input {
             assert_eq!(false, bf.contains(&i), "input {i}");
         }
+    }
+
+    #[test]
+    fn test_sbf_positive() {
+        let mut bf = ScalableBloomFilter::new();
+        let input = gen_input(512);
+        input.iter().for_each(|i| bf.insert(i));
+
+        for i in input {
+            assert_eq!(true, bf.contains(&i), "input {i}");
+        }
+        assert_eq!(true, bf.filters.len() > 1)
+    }
+
+    #[test]
+    fn test_sbf_negative() {
+        let mut bf = ScalableBloomFilter::new();
+        let input = gen_input(256);
+        input.iter().for_each(|i| bf.insert(i));
+
+        let neg_input = gen_input(16);
+        for i in neg_input {
+            assert_eq!(false, bf.contains(&i), "input {i}");
+        }
+        assert_eq!(true, bf.filters.len() > 1)
     }
 }
