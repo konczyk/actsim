@@ -2,6 +2,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 struct BloomFilter {
     bits: Vec<u8>,
+    size: usize,
     hashes: u8,
 }
 
@@ -9,18 +10,19 @@ impl BloomFilter {
     fn new(size: usize, hashes: u8) -> Self {
         Self {
             bits: vec![0; (size + 7) >> 3],
-            hashes
+            size,
+            hashes,
         }
     }
 
-    fn hash(&self, input: &str, seed: u8) -> usize {
+    fn hash<T: Hash>(&self, input: &T, seed: u8) -> usize {
         let mut hasher = DefaultHasher::new();
         input.hash(&mut hasher);
         seed.hash(&mut hasher);
-        hasher.finish() as usize % (self.bits.len() * 8)
+        hasher.finish() as usize % self.size
     }
 
-    fn insert(&mut self, input: &str) {
+    fn insert<T: Hash>(&mut self, input: &T) {
         for i in 0..self.hashes {
             let idx = self.hash(input, i);
             self.bits[idx >> 3] |= 1 << (idx & 7);
@@ -28,7 +30,7 @@ impl BloomFilter {
 
     }
 
-    fn contains(&self, input: &str) -> bool {
+    fn contains<T: Hash>(&self, input: &T) -> bool {
         (0..self.hashes).all(|i| {
             let idx = self.hash(input, i);
             self.bits[idx >> 3] & (1 << (idx & 7)) != 0
