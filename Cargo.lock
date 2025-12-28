@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "adsb_filter"
+name = "adsb-filter"
 version = "0.1.0"
 dependencies = [
  "clap",

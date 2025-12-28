@@ -1,18 +1,24 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::time::{Duration, Instant};
 
 pub struct ScalableBloomFilter {
     filters: Vec<BloomFilter>,
+    initial_size: usize,
+    initial_target_fpr: f64,
     target_fpr: f64,
     growth_factor: usize,
-    tightening_ratio: f64
+    tightening_ratio: f64,
 }
 
 impl ScalableBloomFilter {
     pub fn new() -> Self {
-        let target_fpr = 0.01f64;
+        let initial_size = 1024;
+        let initial_target_fpr = 0.01f64;
         Self {
-            filters: vec![BloomFilter::new(1024, -target_fpr.log2().ceil() as usize, 1)],
-            target_fpr,
+            filters: vec![BloomFilter::new(initial_size, -initial_target_fpr.log2().ceil() as usize, 1)],
+            initial_size,
+            initial_target_fpr,
+            target_fpr: initial_target_fpr,
             growth_factor: 2,
             tightening_ratio: 0.8
         }
@@ -41,13 +47,22 @@ impl ScalableBloomFilter {
         }
     }
 
+    pub fn prune(&mut self, max_age: Duration) {
+        let now = Instant::now();
+        self.filters.retain(|f| now.duration_since(f.timestamp) < max_age);
+        if self.filters.is_empty() {
+            self.filters.push(BloomFilter::new(self.initial_size, -self.initial_target_fpr.log2().ceil() as usize, 1))
+        }
+    }
+
 }
 
 pub struct BloomFilter {
     bits: Vec<u8>,
     size: usize,
     hashes: usize,
-    layer: usize
+    layer: usize,
+    timestamp: Instant
 }
 
 impl BloomFilter {
@@ -56,7 +71,8 @@ impl BloomFilter {
             bits: vec![0; (size + 7) >> 3],
             size,
             hashes,
-            layer
+            layer,
+            timestamp: Instant::now(),
         }
     }
 

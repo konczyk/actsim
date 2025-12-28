@@ -1,6 +1,6 @@
 # ADS-B Filter 
 
-Tiny, scalable ADS-B filter with a near constant false positive ratio.
+Tiny, scalable ADS-B filter with a near constant false positive ratio and pruning of old data.
 
 ## Usage
 
@@ -12,6 +12,16 @@ cargo build -r
 Run tests
 ```shell
 cargo test
+```
+
+Execute
+```shell
+$ ./target/release/adsb_filter -h
+Usage: adsb_filter [OPTIONS]
+
+Options:
+      --max-age <MAX_AGE>  Max age in seconds for a filter before it gets removed [default: 300]
+  -h, --help               Print help
 ```
 
 ## Examples
