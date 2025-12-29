@@ -8,19 +8,23 @@ pub struct ScalableBloomFilter {
     target_fpr: f64,
     growth_factor: usize,
     tightening_ratio: f64,
+    partition_size: usize
 }
 
 impl ScalableBloomFilter {
     pub fn new() -> Self {
-        let initial_size = 1024;
         let initial_target_fpr = 0.01f64;
+        let hashes = -initial_target_fpr.log2().ceil() as usize;
+        let partition_size = 256;
+        let initial_size = partition_size * hashes;
         Self {
-            filters: vec![BloomFilter::new(initial_size, -initial_target_fpr.log2().ceil() as usize, 1)],
+            filters: vec![BloomFilter::new(initial_size, hashes, 1, partition_size)],
             initial_size,
             initial_target_fpr,
             target_fpr: initial_target_fpr,
             growth_factor: 2,
-            tightening_ratio: 0.8
+            tightening_ratio: 0.8,
+            partition_size
         }
     }
 
@@ -39,7 +43,8 @@ impl ScalableBloomFilter {
             if let Some(filter) = self.filters.last() {
                 if filter.bits.iter().map(|b| b.count_ones()).sum::<u32>() as f64/filter.size as f64 > 0.5 {
                     self.target_fpr *= self.tightening_ratio;
-                    self.filters.push(BloomFilter::new(filter.size * self.growth_factor, -self.target_fpr.log2().ceil() as usize, self.filters.len()+1))
+                    let hashes = -self.target_fpr.log2().ceil() as usize;
+                    self.filters.push(BloomFilter::new(self.partition_size * hashes * self.growth_factor, hashes , self.filters.len() + 1, self.partition_size))
                 }
             }
             let last = self.filters.len() - 1;
@@ -51,7 +56,7 @@ impl ScalableBloomFilter {
         let now = Instant::now();
         self.filters.retain(|f| now.duration_since(f.timestamp) < max_age);
         if self.filters.is_empty() {
-            self.filters.push(BloomFilter::new(self.initial_size, -self.initial_target_fpr.log2().ceil() as usize, 1))
+            self.filters.push(BloomFilter::new(self.initial_size, -self.initial_target_fpr.log2().ceil() as usize, 1, self.partition_size))
         }
     }
 
@@ -62,26 +67,28 @@ pub struct BloomFilter {
     size: usize,
     hashes: usize,
     layer: usize,
-    timestamp: Instant
+    timestamp: Instant,
+    partition_size: usize
 }
 
 impl BloomFilter {
-    pub fn new(size: usize, hashes: usize, layer: usize) -> Self {
+    pub fn new(size: usize, hashes: usize, layer: usize, partition_size: usize) -> Self {
         Self {
             bits: vec![0; (size + 7) >> 3],
             size,
             hashes,
             layer,
             timestamp: Instant::now(),
+            partition_size,
         }
     }
 
-    fn hash<T: Hash>(&self, input: &T, seed: usize) -> usize {
+    fn hash<T: Hash>(&self, input: &T, partition: usize) -> usize {
         let mut hasher = DefaultHasher::new();
         input.hash(&mut hasher);
-        seed.hash(&mut hasher);
+        partition.hash(&mut hasher);
         self.layer.hash(&mut hasher);
-        hasher.finish() as usize % self.size
+        partition * self.partition_size +  hasher.finish() as usize % self.partition_size
     }
 
     pub fn insert<T: Hash>(&mut self, input: &T) {
@@ -113,7 +120,7 @@ mod tests {
 
     #[test]
     fn test_bf_positive() {
-        let mut bf = BloomFilter::new(1024, 16, 1);
+        let mut bf = BloomFilter::new(1024, 4, 1, 256);
         let input = gen_input(64);
         input.iter().for_each(|i| bf.insert(i));
 
@@ -124,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_bf_negative() {
-        let mut bf = BloomFilter::new(4096, 16, 1);
+        let mut bf = BloomFilter::new(4096, 16, 1, 256);
         let input = gen_input(64);
         input.iter().for_each(|i| bf.insert(i));
 
@@ -157,5 +164,16 @@ mod tests {
             assert_eq!(false, bf.contains(&i), "input {i}");
         }
         assert_eq!(true, bf.filters.len() > 1)
+    }
+
+    #[test]
+    fn partitioning() {
+        let input = gen_input(256);
+        for i in input {
+            let mut bf = BloomFilter::new(128, 4, 1, 32);
+            bf.insert(&i);
+            assert_eq!(true, bf.contains(&i), "input {i}");
+            assert_eq!(4, bf.bits.iter().map(|x| x.count_ones()).sum::<u32>())
+        }
     }
 }
