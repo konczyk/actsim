@@ -2,6 +2,7 @@ use clap::Parser;
 use std::io;
 use std::io::BufRead;
 use std::time::Duration;
+use crate::filter::bloom_filter;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -13,7 +14,7 @@ struct Args {
     max_age: u64,
 }
 
-mod bloom_filter;
+mod filter;
 
 fn main() -> io::Result<()>{
     let args = Args::parse();

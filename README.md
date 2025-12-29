@@ -16,11 +16,11 @@ cargo test
 
 Execute
 ```shell
-$ ./target/release/adsb_filter -h
-Usage: adsb_filter [OPTIONS]
+$ ./target/release/adsb-filter -h
+Usage: adsb-filter [OPTIONS]
 
 Options:
-      --max-age <MAX_AGE>  Max age in seconds for a filter before it gets removed [default: 300]
+      --max-age <MAX_AGE>  Max age in seconds for a filter before pruning [default: 300]
   -h, --help               Print help
 ```
 
@@ -28,20 +28,22 @@ Options:
 
 Run the filter against a test data stream
 ```shell
-$ ./adsb_gen.py | ./target/release/adsb_filter 
-NEW:    05A48E
-NEW:    A91DDD
-NEW:    31A689
-NEW:    0689BA
-NEW:    504DD1
-MATCH:  A91DDD (Est. FPR: 1.5625%)
-NEW:    105C37
-NEW:    560784
-MATCH:  05A48E (Est. FPR: 1.5625%)
-MATCH:  0689BA (Est. FPR: 1.5625%)
-NEW:    3B36BD
-NEW:    8F2BDD
-MATCH:  560784 (Est. FPR: 1.5625%)
-NEW:    5C893C
+$ ./tools/adsb_gen.py | ./target/release/adsb-filter
+NEW:    17DDE3
+NEW:    BA344C
+NEW:    DF9C6D
+NEW:    372D6C
+NEW:    2258C3
+NEW:    136A77
+NEW:    74AB7C
+NEW:    42F157
+MATCH:  136A77 (Est. FPR: 1.5625%)
+MATCH:  372D6C (Est. FPR: 1.5625%)
+MATCH:  2258C3 (Est. FPR: 1.5625%)
+NEW:    B89861
+MATCH:  74AB7C (Est. FPR: 1.5625%)
+MATCH:  17DDE3 (Est. FPR: 1.5625%)
+MATCH:  BA344C (Est. FPR: 1.5625%)
+NEW:    EB9C72
 [...]
 ```
