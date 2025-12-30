@@ -1,6 +1,6 @@
-# ADS-B Filter 
+# ACTsim 
 
-Tiny, scalable ADS-B filter with a near constant false positive ratio and pruning of old data.
+Simple ACT simulator including a scalable ADS-B filter with a near constant false positive ratio and pruning of old data.
 
 ## Usage
 
@@ -14,10 +14,13 @@ Run tests
 cargo test
 ```
 
-Execute
+Options
 ```shell
-$ ./target/release/adsb-filter -h
-Usage: adsb-filter [OPTIONS]
+$ ./target/release/actsim -h
+Usage: actsim [OPTIONS] <COMMAND>
+
+Arguments:
+  <COMMAND>  [possible values: filter]
 
 Options:
       --max-age <MAX_AGE>  Max age in seconds for a filter before pruning [default: 300]
@@ -26,9 +29,9 @@ Options:
 
 ## Examples
 
-Run the filter against a test data stream
+Run the ADS-B filter against a test data stream
 ```shell
-$ ./tools/adsb_gen.py | ./target/release/adsb-filter
+$ ./tools/adsb_gen.py | ./target/release/actsim filter
 NEW:    17DDE3
 NEW:    BA344C
 NEW:    DF9C6D
