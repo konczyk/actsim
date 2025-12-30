@@ -39,17 +39,15 @@ impl ScalableBloomFilter {
     }
 
     pub fn insert<T: Hash>(&mut self, input: &T) {
-        if !self.contains(input) {
-            if let Some(filter) = self.filters.last() {
-                if filter.bits.iter().map(|b| b.count_ones()).sum::<u32>() as f64/filter.size as f64 > 0.5 {
-                    self.target_fpr *= self.tightening_ratio;
-                    let hashes = -self.target_fpr.log2().ceil() as usize;
-                    self.filters.push(BloomFilter::new(self.partition_size * hashes * self.growth_factor, hashes , self.filters.len() + 1, self.partition_size))
-                }
+        if let Some(filter) = self.filters.last() {
+            if filter.bits.iter().map(|b| b.count_ones()).sum::<u32>() as f64/filter.size as f64 > 0.5 {
+                self.target_fpr *= self.tightening_ratio;
+                let hashes = -self.target_fpr.log2().ceil() as usize;
+                self.filters.push(BloomFilter::new(self.partition_size * hashes * self.growth_factor, hashes , self.filters.len() + 1, self.partition_size))
             }
-            let last = self.filters.len() - 1;
-            self.filters[last].insert(input);
         }
+        let last = self.filters.len() - 1;
+        self.filters[last].insert(input);
     }
 
     pub fn prune(&mut self, max_age: Duration) {

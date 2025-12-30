@@ -2,7 +2,7 @@ use clap::Parser;
 use std::io;
 use std::io::BufRead;
 use std::time::Duration;
-use crate::filter::bloom_filter;
+use crate::filter::manager;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -19,7 +19,7 @@ mod filter;
 fn main() -> io::Result<()>{
     let args = Args::parse();
 
-    let mut sbf = bloom_filter::ScalableBloomFilter::new();
+    let mut manager = manager::Manager::new();
 
     let stdin = io::stdin();
     let mut handle = stdin.lock();
@@ -27,26 +27,23 @@ fn main() -> io::Result<()>{
     let mut iter = 0;
 
     while handle.read_line(&mut buf)? > 0 {
-        let line = buf.trim();
+        let line = buf.trim().to_string();
+        buf.clear();
+
         if line.is_empty() {
-            buf.clear();
             continue;
         }
 
-        if sbf.contains(&line) {
-            println!("MATCH:\t{} (Est. FPR: {:.4}%)", line, sbf.fpr() * 100.0);
-        } else {
-            sbf.insert(&line);
+        if manager.insert(&line) {
             println!("NEW:\t{}", line);
+        } else {
+            println!("MATCH:\t{} (Est. FPR: {:.4}%)", line, manager.fpr() * 100.0);
         }
-
-        buf.clear();
 
         iter += 1;
 
         if iter % 1000 == 0 {
-            sbf.prune(Duration::from_secs(args.max_age));
-
+            manager.prune(Duration::from_secs(args.max_age));
         }
     }
 
