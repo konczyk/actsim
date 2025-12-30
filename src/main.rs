@@ -27,41 +27,42 @@ struct Args {
 
 mod filter;
 
-fn main() -> io::Result<()>{
-    let args = Args::parse();
+fn run_filter(args: Args) -> io::Result<()> {
+    let mut manager = manager::Manager::new();
 
-    match args.command {
-        Command::Filter => {
-            let mut manager = manager::Manager::new();
+    let stdin = io::stdin();
+    let mut handle = stdin.lock();
+    let mut buf = String::new();
+    let mut iter = 0;
 
-            let stdin = io::stdin();
-            let mut handle = stdin.lock();
-            let mut buf = String::new();
-            let mut iter = 0;
+    while handle.read_line(&mut buf)? > 0 {
+        let line = buf.trim().to_string();
+        buf.clear();
 
-            while handle.read_line(&mut buf)? > 0 {
-                let line = buf.trim().to_string();
-                buf.clear();
+        if line.is_empty() {
+            continue;
+        }
 
-                if line.is_empty() {
-                    continue;
-                }
+        if manager.insert(&line) {
+            println!("NEW:\t{}", line);
+        } else {
+            println!("MATCH:\t{} (Est. FPR: {:.4}%)", line, manager.fpr() * 100.0);
+        }
 
-                if manager.insert(&line) {
-                    println!("NEW:\t{}", line);
-                } else {
-                    println!("MATCH:\t{} (Est. FPR: {:.4}%)", line, manager.fpr() * 100.0);
-                }
+        iter += 1;
 
-                iter += 1;
-
-                if iter % 1000 == 0 {
-                    manager.prune(Duration::from_secs(args.max_age));
-                }
-            }
-
+        if iter % 1000 == 0 {
+            manager.prune(Duration::from_secs(args.max_age));
         }
     }
 
     Ok(())
+}
+
+fn main() -> io::Result<()>{
+    let args = Args::parse();
+
+    match args.command {
+        Command::Filter => run_filter(args)
+    }
 }

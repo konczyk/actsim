@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 pub struct ScalableBloomFilter {
     filters: Vec<BloomFilter>,
     initial_size: usize,
-    initial_target_fpr: f64,
+    initial_hashes: usize,
     target_fpr: f64,
     growth_factor: usize,
     tightening_ratio: f64,
@@ -13,15 +13,15 @@ pub struct ScalableBloomFilter {
 
 impl ScalableBloomFilter {
     pub fn new() -> Self {
-        let initial_target_fpr = 0.01f64;
-        let hashes = -initial_target_fpr.log2().ceil() as usize;
+        let target_fpr = 0.01f64;
+        let initial_hashes = -target_fpr.log2().ceil() as usize;
         let partition_size = 256;
-        let initial_size = partition_size * hashes;
+        let initial_size = partition_size * initial_hashes;
         Self {
-            filters: vec![BloomFilter::new(initial_size, hashes, 1, partition_size)],
+            filters: vec![BloomFilter::new(initial_size, initial_hashes, 1, partition_size)],
             initial_size,
-            initial_target_fpr,
-            target_fpr: initial_target_fpr,
+            target_fpr,
+            initial_hashes,
             growth_factor: 2,
             tightening_ratio: 0.8,
             partition_size
@@ -54,7 +54,7 @@ impl ScalableBloomFilter {
         let now = Instant::now();
         self.filters.retain(|f| now.duration_since(f.timestamp) < max_age);
         if self.filters.is_empty() {
-            self.filters.push(BloomFilter::new(self.initial_size, -self.initial_target_fpr.log2().ceil() as usize, 1, self.partition_size))
+            self.filters.push(BloomFilter::new(self.initial_size, self.initial_hashes, 1, self.partition_size))
         }
     }
 
