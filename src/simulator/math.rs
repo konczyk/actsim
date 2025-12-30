@@ -1,17 +1,17 @@
 use std::ops::{Add, Mul, Sub};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct Vector2D {
+pub struct Vector2D {
     x: f64,
     y: f64
 }
 
 impl Vector2D {
-    pub fn new(x: f64, y: f64) -> Self {
+    fn new(x: f64, y: f64) -> Self {
         Self { x, y }
     }
 
-    pub fn distance(&self, other: Self) -> f64 {
+    fn distance(&self, other: Self) -> f64 {
         ((other.x - self.x).powi(2) + (other.y - self.y).powi(2)).sqrt()
     }
 }
