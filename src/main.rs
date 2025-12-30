@@ -26,6 +26,7 @@ struct Args {
 }
 
 mod filter;
+mod simulator;
 
 fn run_filter(args: Args) -> io::Result<()> {
     let mut manager = manager::Manager::new();
