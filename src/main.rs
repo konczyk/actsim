@@ -1,13 +1,17 @@
 use clap::{Parser, ValueEnum};
 use std::io;
 use std::io::BufRead;
+use std::sync::Arc;
 use std::time::Duration;
-use crate::filter::manager;
+use crate::filter::filter_manager;
+use crate::simulator::model::AdsbPacket;
+use crate::simulator::sim_manager;
 
 #[derive(Clone, Debug, ValueEnum)]
 #[value(rename_all = "lowercase")]
 enum Command {
     Filter,
+    Simulate,
 }
 
 #[derive(Parser, Debug)]
@@ -28,42 +32,82 @@ struct Args {
 mod filter;
 mod simulator;
 
-fn run_filter(args: Args) -> io::Result<()> {
-    let mut manager = manager::Manager::new();
-
+fn process_adsb_stream<F: FnMut(AdsbPacket)>(mut action: F) -> io::Result<()> {
     let stdin = io::stdin();
     let mut handle = stdin.lock();
     let mut buf = String::new();
-    let mut iter = 0;
 
     while handle.read_line(&mut buf)? > 0 {
-        let line = buf.trim().to_string();
-        buf.clear();
+        let line = buf.trim();
 
         if line.is_empty() {
             continue;
         }
 
-        if manager.insert(&line) {
-            println!("NEW:\t{}", line);
+        if let Ok(packet) = serde_json::from_str::<AdsbPacket>(line) {
+            action(packet);
+        }
+
+        buf.clear();
+    }
+
+    Ok(())
+}
+
+fn run_filter(args: Args) -> io::Result<()> {
+    let mut filter_manager = filter_manager::FilterManager::new();
+    let mut iter = 0;
+
+    process_adsb_stream(|packet| {
+
+        if filter_manager.insert(&packet.id) {
+            println!("NEW:\t{}", &packet.id);
         } else {
-            println!("MATCH:\t{} (Est. FPR: {:.4}%)", line, manager.fpr() * 100.0);
+            println!("MATCH:\t{} (Est. FPR: {:.4}%)", &packet.id, filter_manager.fpr() * 100.0);
         }
 
         iter += 1;
 
         if iter % 1000 == 0 {
-            manager.prune(Duration::from_secs(args.max_age));
+            filter_manager.prune(Duration::from_secs(args.max_age));
         }
-    }
+    })
+}
 
-    Ok(())
+fn run_simulation(args: Args) -> io::Result<()> {
+    let mut filter_manager = filter_manager::FilterManager::new();
+    let mut sim_manager = sim_manager::SimManager::new();
+    let mut iter = 0;
+
+    process_adsb_stream(|packet| {
+        if !filter_manager.insert(&packet.id) {
+            let name = packet.callsign.unwrap_or(packet.id);
+            sim_manager.handle_update(
+                Arc::from(name),
+                packet.px, packet.py,
+                packet.vx, packet.vy
+            );
+        }
+        for (pair, prob) in &sim_manager.collisions {
+            if *prob > 0.0 {
+                println!("ALERT: {:?} -> Risk: {:.2}%", pair, prob * 100.0);
+            }
+        }
+
+        iter += 1;
+
+        if iter % 1000 == 0 {
+            filter_manager.prune(Duration::from_secs(args.max_age));
+        }
+
+    })
 }
 
 fn main() -> io::Result<()>{
     let args = Args::parse();
 
     match args.command {
-        Command::Filter => run_filter(args)
+        Command::Filter => run_filter(args),
+        Command::Simulate => run_simulation(args),
     }
 }

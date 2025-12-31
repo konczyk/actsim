@@ -1,2 +1,2 @@
 pub mod bloom_filter;
-pub mod manager;
+pub mod filter_manager;

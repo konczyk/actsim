@@ -3,14 +3,14 @@ use std::collections::{HashSet, VecDeque};
 use std::hash::Hash;
 use std::time::Duration;
 
-pub struct Manager<T: Hash> {
+pub struct FilterManager<T: Hash> {
     sbf: ScalableBloomFilter,
     cache: HashSet<T>,
     queue: VecDeque<T>,
     cache_max_size: usize,
 }
 
-impl<T: Clone + Eq + Hash> Manager<T> {
+impl<T: Clone + Eq + Hash> FilterManager<T> {
     pub fn new() -> Self {
         let cache_max_size = 128;
         Self {
