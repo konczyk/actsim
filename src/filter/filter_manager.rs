@@ -101,4 +101,18 @@ mod tests {
         assert!(fm.pending.is_empty());
         assert!(fm.sbf.filters.iter().all(|f| f.bits.iter().any(|x| x.count_ones() > 0)));
     }
+    #[test]
+    fn test_prune() {
+        let mut fm = FilterManager::<&str>::new();
+        let plane = "ALPHA1";
+
+        fm.insert(&plane);
+        fm.insert(&plane);
+        fm.insert(&plane);
+        assert_eq!(FilterResult::Trusted, fm.insert(&plane));
+
+        fm.prune(Duration::from_secs(10));
+
+        assert_eq!(FilterResult::Trusted, fm.insert(&plane));
+    }
 }
