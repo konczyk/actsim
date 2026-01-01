@@ -10,6 +10,13 @@ pub struct FilterStats {
     pub est_fpr: f64,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum FilterResult {
+    Pending,
+    Promoted,
+    Trusted,
+}
+
 pub struct FilterManager<T: Hash> {
     sbf: ScalableBloomFilter,
     pub pending: HashMap<T, u8>,
@@ -29,11 +36,9 @@ impl<T: Clone + Eq + Hash> FilterManager<T> {
         self.sbf.fpr()
     }
 
-    // return true if the input is new
-    pub fn insert(&mut self, input: &T) -> bool {
-        // input is in the bloom filter
+    pub fn insert(&mut self, input: &T) -> FilterResult {
         if self.sbf.contains(input) {
-            return false;
+            return FilterResult::Trusted;
         }
 
         let count = self.pending.entry(input.clone()).or_insert(0);
@@ -42,10 +47,10 @@ impl<T: Clone + Eq + Hash> FilterManager<T> {
         if *count >= self.threshold {
             self.pending.remove(input);
             self.sbf.insert(input);
-            return false;
+            return FilterResult::Promoted;
         }
 
-        true
+        FilterResult::Pending
     }
 
     pub fn prune(&mut self, max_age: Duration) {
@@ -62,5 +67,38 @@ impl<T: Clone + Eq + Hash> FilterManager<T> {
             fill_ratio: set_bits as f64 / total_bits as f64,
             est_fpr: self.fpr(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pending() {
+        let mut fm = FilterManager::<&str>::new();
+        let plane = "ALPHA1";
+
+        // 1st check
+        assert_eq!(FilterResult::Pending, fm.insert(&plane));
+        assert_eq!(1, fm.pending.len());
+        assert_eq!(Some(&1u8), fm.pending.get(&plane));
+        assert!(fm.sbf.filters.iter().all(|f| f.bits.iter().all(|x| x.count_ones() == 0)));
+
+        // 2nd check
+        assert_eq!(FilterResult::Pending, fm.insert(&plane));
+        assert_eq!(1, fm.pending.len());
+        assert_eq!(Some(&2u8), fm.pending.get(&plane));
+        assert!(fm.sbf.filters.iter().all(|f| f.bits.iter().all(|x| x.count_ones() == 0)));
+
+        // 3rd check
+        assert_eq!(FilterResult::Promoted, fm.insert(&plane));
+        assert!(fm.pending.is_empty());
+        assert!(fm.sbf.filters.iter().all(|f| f.bits.iter().any(|x| x.count_ones() > 0)));
+
+        // 4th check (bf)
+        assert_eq!(FilterResult::Trusted, fm.insert(&plane));
+        assert!(fm.pending.is_empty());
+        assert!(fm.sbf.filters.iter().all(|f| f.bits.iter().any(|x| x.count_ones() > 0)));
     }
 }

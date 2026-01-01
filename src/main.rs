@@ -5,6 +5,7 @@ use std::io::BufRead;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use crate::filter::filter_manager;
+use crate::filter::filter_manager::FilterResult;
 use crate::simulator::math::Vector2D;
 use crate::simulator::model::AdsbPacket;
 use crate::simulator::sim_manager;
@@ -68,7 +69,7 @@ fn run_filter(args: Args) -> io::Result<()> {
     let prune_interval = Duration::from_secs(5);
 
     process_adsb_stream(|packet| {
-        if filter_manager.insert(&packet.id) {
+        if filter_manager.insert(&packet.id) == FilterResult::Pending {
             println!("NEW:\t{}", &packet.id);
         } else {
             println!("MATCH:\t{} (Est. FPR: {:.4}%)", &packet.id, filter_manager.fpr() * 100.0);
@@ -122,7 +123,7 @@ fn run_simulation(args: Args) -> io::Result<()> {
             }
         }
 
-        if !filter_manager.insert(&packet.id) {
+        if filter_manager.insert(&packet.id) != FilterResult::Pending {
             let name = packet.callsign.unwrap_or(packet.id);
             sim_manager.handle_update(
                 Arc::from(name),
