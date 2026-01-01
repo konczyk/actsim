@@ -45,8 +45,8 @@ def get_grid_flights():
             px = -SCALE + (x * SPACING)
             py = -SCALE + (y * SPACING)
 
-            vx = -px / 1000.0
-            vy = -py / 1000.0
+            vx = -px / 100.0
+            vy = -py / 100.0
 
             flights.append(Aircraft(f"ICAO{x}-{y}",  f"PLN-{x}-{y}", px, py, vx, vy))
     return flights
