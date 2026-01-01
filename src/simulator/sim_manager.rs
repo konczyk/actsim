@@ -1,17 +1,18 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use crate::simulator::math::Vector2D;
 use crate::simulator::model::Aircraft;
 
 pub struct SimManager {
-    aircrafts: HashMap<Arc<str>, Aircraft>,
+    pub aircrafts: HashMap<Arc<str>, Aircraft>,
     pub collisions: HashMap<(Arc<str>, Arc<str>), f64>,
     max_distance: f64,
 }
 
 impl SimManager {
     pub fn new() -> Self {
-        Self { aircrafts: HashMap::new(), collisions: HashMap::new(), max_distance: 30_000.0 }
+        Self { aircrafts: HashMap::new(), collisions: HashMap::new(), max_distance: 50_000.0 }
     }
 
     pub fn handle_update(&mut self, callsign: Arc<str>, px: f64, py: f64, vx: f64, vy: f64) {
@@ -49,7 +50,7 @@ impl SimManager {
         let mut hits = 0;
         let loops = 1000;
         let max_range = 200.0;
-        let noise_magnitude = 2.0;
+        let noise_magnitude = 1.0;
 
         for _ in 0..loops {
             let av = aircraft.1.add_noise(noise_magnitude);
@@ -66,6 +67,19 @@ impl SimManager {
         }
 
         hits as f64/loops as f64
+    }
+
+    pub fn prune(&mut self, max_age: Duration, center: Vector2D, boundry: f64) {
+        let now = Instant::now();
+
+        self.aircrafts.retain(|_, a| {
+            now.duration_since(a.last_seen) < max_age
+                && a.position.distance(center) < boundry
+        });
+
+        self.collisions.retain(|(a, b), _| {
+            self.aircrafts.contains_key(a) && self.aircrafts.contains_key(b)
+        })
     }
 
 }

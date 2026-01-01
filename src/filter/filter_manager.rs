@@ -1,23 +1,27 @@
 use crate::filter::bloom_filter::ScalableBloomFilter;
-use std::collections::{HashSet, VecDeque};
+use std::collections::HashMap;
 use std::hash::Hash;
 use std::time::Duration;
 
+pub struct FilterStats {
+    pub layer_count: usize,
+    pub total_bits: usize,
+    pub fill_ratio: f64,
+    pub est_fpr: f64,
+}
+
 pub struct FilterManager<T: Hash> {
     sbf: ScalableBloomFilter,
-    cache: HashSet<T>,
-    queue: VecDeque<T>,
-    cache_max_size: usize,
+    pub pending: HashMap<T, u8>,
+    threshold: u8,
 }
 
 impl<T: Clone + Eq + Hash> FilterManager<T> {
     pub fn new() -> Self {
-        let cache_max_size = 128;
         Self {
             sbf: ScalableBloomFilter::new(),
-            cache: HashSet::new(),
-            queue: VecDeque::with_capacity(cache_max_size),
-            cache_max_size
+            pending: HashMap::new(),
+            threshold: 3
         }
     }
 
@@ -25,29 +29,38 @@ impl<T: Clone + Eq + Hash> FilterManager<T> {
         self.sbf.fpr()
     }
 
+    // return true if the input is new
     pub fn insert(&mut self, input: &T) -> bool {
-        if self.cache.contains(input) {
-            false
-        } else {
-            if !self.sbf.contains(input) {
-                self.sbf.insert(input);
-                self.cache.insert(input.clone());
-                self.queue.push_front(input.clone());
-                if self.queue.len() > self.cache_max_size {
-                    self.queue.pop_back().iter().for_each(|popped| {
-                        self.cache.remove(popped);
-                        ()
-                    });
-                }
-                return true
-            }
-            false
+        // input is in the bloom filter
+        if self.sbf.contains(input) {
+            return false;
         }
+
+        let count = self.pending.entry(input.clone()).or_insert(0);
+        *count += 1;
+
+        if *count >= self.threshold {
+            self.pending.remove(input);
+            self.sbf.insert(input);
+            return false;
+        }
+
+        true
     }
 
     pub fn prune(&mut self, max_age: Duration) {
         self.sbf.prune(max_age);
-        self.cache.clear();
-        self.queue.clear();
+        self.pending.clear();
+    }
+
+    pub fn stats(&self) -> FilterStats {
+        let total_bits = self.sbf.filters.iter().map(|l| l.size * 8).sum();
+        let set_bits = self.sbf.filters.iter().map(|l| l.bits.iter().map(|v| v.count_ones()).sum::<u32>()).sum::<u32>() as usize;
+        FilterStats {
+            layer_count: self.sbf.filters.len(),
+            total_bits,
+            fill_ratio: set_bits as f64 / total_bits as f64,
+            est_fpr: self.fpr(),
+        }
     }
 }

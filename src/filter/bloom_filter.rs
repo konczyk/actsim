@@ -2,7 +2,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::{Duration, Instant};
 
 pub struct ScalableBloomFilter {
-    filters: Vec<BloomFilter>,
+    pub filters: Vec<BloomFilter>,
     initial_size: usize,
     initial_hashes: usize,
     target_fpr: f64,
@@ -61,8 +61,8 @@ impl ScalableBloomFilter {
 }
 
 pub struct BloomFilter {
-    bits: Vec<u8>,
-    size: usize,
+    pub bits: Vec<u8>,
+    pub size: usize,
     hashes: usize,
     layer: usize,
     timestamp: Instant,

@@ -14,6 +14,12 @@ CALLSIGNS = [
     "OSCAR", "PAPA"
 ]
 
+MIN_POS = -25000
+MAX_POS = 25000
+MIN_SPEED = 200
+MAX_SPEED = 250
+
+
 class Aircraft:
     def __init__(self, icao, callsign, px, py, vx, vy):
         self.icao = icao
@@ -51,15 +57,23 @@ def generate_noise():
     }
 
 def random_pos():
-    return random.uniform(-20000, 20000)
+    return random.uniform(MIN_POS, MAX_POS)
 
 def random_vel():
-    return random.uniform(-250, 250)
+    return random.uniform(MIN_SPEED, MAX_SPEED) * random.choice([-1, 1])
 
 def main():
-    flights = [Aircraft(generate_icao(), callsign, random_pos(), random_pos(), random_vel(), random_vel()) for callsign in [f"{v}{k}" for k,v in enumerate(CALLSIGNS, start=1)]]
-    collide1 = Aircraft(generate_icao(), 'COLLIDE1', -20000, 100, 250, 0)
-    collide2 = Aircraft(generate_icao(), 'COLLIDE2', 20000, 100, -250, 0)
+    flights = [
+        Aircraft(
+            generate_icao(), callsign,
+            random_pos(), random_pos(),
+            random_vel(), random_vel()
+        )
+        for callsign in [f"{name}{i}" for _, name in enumerate(CALLSIGNS) for i in range(1, 3)]
+    ]
+
+    collide1 = Aircraft(generate_icao(), 'COLLIDE1', MIN_POS, 100, MAX_SPEED, 0)
+    collide2 = Aircraft(generate_icao(), 'COLLIDE2', MAX_POS, 100, -MAX_SPEED, 0)
     flights.extend([collide1, collide2])
 
     dt = 0.5
@@ -70,9 +84,9 @@ def main():
                 aircraft.update(dt)
                 print(json.dumps(aircraft.to_dict()))
 
-            if -300 < collide1.px < 300 or -300 < collide2.px < 300:
-                collide1.px = -20000
-                collide2.px = 20000
+            if MIN_SPEED < collide1.px < MAX_SPEED or MIN_SPEED < collide2.px < MAX_SPEED:
+                collide1.px = MIN_POS
+                collide2.px = MAX_POS
 
             for _ in range(0, 10):
                 print(json.dumps(generate_noise()))
