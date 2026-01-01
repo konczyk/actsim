@@ -47,13 +47,7 @@ fn process_adsb_stream<F: FnMut(AdsbPacket)>(mut action: F) -> io::Result<()> {
     let mut buf = String::new();
 
     while handle.read_line(&mut buf)? > 0 {
-        let line = buf.trim();
-
-        if line.is_empty() {
-            continue;
-        }
-
-        if let Ok(packet) = serde_json::from_str::<AdsbPacket>(line) {
+        if let Ok(packet) = serde_json::from_str::<AdsbPacket>(&buf) {
             action(packet);
         }
 
