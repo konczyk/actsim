@@ -84,7 +84,7 @@ def main():
                 aircraft.update(dt)
                 print(json.dumps(aircraft.to_dict()))
 
-            if MIN_SPEED < collide1.px < MAX_SPEED or MIN_SPEED < collide2.px < MAX_SPEED:
+            if collide1.px > collide2.px:
                 collide1.px = MIN_POS
                 collide2.px = MAX_POS
 
