@@ -7,7 +7,7 @@ import json
 
 ICAO_CHARS = "0123456789ABCDEF"
 
-SCALE = 1_000_000
+SCALE = 200_000
 MIN_SPEED = 100
 MAX_SPEED = 250
 NUM_PLANES = 4096
@@ -45,10 +45,15 @@ def get_grid_flights():
             px = -SCALE + (x * SPACING)
             py = -SCALE + (y * SPACING)
 
-            vx = -px / 100.0
-            vy = -py / 100.0
+            dist_from_center = math.sqrt(px**2 + py**2)
+            speed = MIN_SPEED + (dist_from_center / (SCALE * math.sqrt(2))) * (MAX_SPEED - MIN_SPEED)
 
-            flights.append(Aircraft(f"ICAO{x}-{y}",  f"PLN-{x}-{y}", px, py, vx, vy))
+            # Normalize the direction
+            if dist_from_center > 0:
+                vx = (-px / dist_from_center) * speed
+                vy = (-py / dist_from_center) * speed
+
+                flights.append(Aircraft(f"ICAO{x}-{y}",  f"PLN-{x}-{y}", px, py, vx, vy))
     return flights
 
 def generate_icao():
