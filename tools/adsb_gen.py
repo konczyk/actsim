@@ -1,24 +1,19 @@
 #!/usr/bin/python
-
+import math
 import random
 import time
 import sys
 import json
 
 ICAO_CHARS = "0123456789ABCDEF"
-ACTIVE_POOL_SIZE = 20
-NEW_PLANE_CHANCE = 0.1
-CALLSIGNS = [
-    "ALPHA", "BRAVO", "CHARLIE", "DELTA", "ECHO", "FOXTROT", "GOLF",
-    "HOTEL", "INDIA", "JULIETT", "KILO", "LIMA", "MIKE", "NOVEMBER",
-    "OSCAR", "PAPA"
-]
 
-MIN_POS = -25000
-MAX_POS = 25000
+SCALE = 1_000_000
 MIN_SPEED = 100
 MAX_SPEED = 250
-
+NUM_PLANES = 4096
+SIDE = int(math.sqrt(NUM_PLANES))
+SPACING = (SCALE * 2) / SIDE
+NUM_NOISE = 64
 
 class Aircraft:
     def __init__(self, icao, callsign, px, py, vx, vy):
@@ -43,8 +38,21 @@ class Aircraft:
             "vy": round(self.vy, 2),
         }
 
+def get_grid_flights():
+    flights = []
+    for x in range(SIDE):
+        for y in range(SIDE):
+            px = -SCALE + (x * SPACING)
+            py = -SCALE + (y * SPACING)
+
+            vx = -px / 1000.0
+            vy = -py / 1000.0
+
+            flights.append(Aircraft(f"ICAO{x}-{y}",  f"PLN-{x}-{y}", px, py, vx, vy))
+    return flights
+
 def generate_icao():
-    return "".join(random.choices(ICAO_CHARS, k=6))
+    return "".join(random.choices(ICAO_CHARS, k=8))
 
 def generate_noise():
     return {
@@ -57,24 +65,13 @@ def generate_noise():
     }
 
 def random_pos():
-    return random.uniform(MIN_POS, MAX_POS)
+    return random.uniform(-SCALE, SCALE)
 
 def random_vel():
     return random.uniform(MIN_SPEED, MAX_SPEED) * random.choice([-1, 1])
 
 def main():
-    flights = [
-        Aircraft(
-            generate_icao(), callsign,
-            random_pos(), random_pos(),
-            random_vel(), random_vel()
-        )
-        for callsign in [f"{name}{i}" for _, name in enumerate(CALLSIGNS) for i in range(1, 3)]
-    ]
-
-    collide1 = Aircraft(generate_icao(), 'COLLIDE1', MIN_POS, 100, MAX_SPEED, 0)
-    collide2 = Aircraft(generate_icao(), 'COLLIDE2', MAX_POS, 100, -MAX_SPEED, 0)
-    flights.extend([collide1, collide2])
+    flights = get_grid_flights()
 
     dt = 0.5
     try:
@@ -84,11 +81,7 @@ def main():
                 aircraft.update(dt)
                 print(json.dumps(aircraft.to_dict()))
 
-            if collide1.px > collide2.px:
-                collide1.px = MIN_POS
-                collide2.px = MAX_POS
-
-            for _ in range(0, 10):
+            for _ in range(0, random.randint(1,NUM_NOISE)):
                 print(json.dumps(generate_noise()))
 
             sys.stdout.flush()
