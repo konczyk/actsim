@@ -28,7 +28,7 @@ impl<T: Clone + Eq + Hash> FilterManager<T> {
         Self {
             sbf: ScalableBloomFilter::new(),
             pending: HashMap::new(),
-            threshold: 3
+            threshold: 3,
         }
     }
 

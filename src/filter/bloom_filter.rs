@@ -15,7 +15,7 @@ impl ScalableBloomFilter {
     pub fn new() -> Self {
         let target_fpr = 0.001f64;
         let initial_hashes = -target_fpr.log2().ceil() as usize;
-        let partition_size = 256;
+        let partition_size = 2048;
         let initial_size = partition_size * initial_hashes;
         Self {
             filters: vec![BloomFilter::new(initial_size, initial_hashes, 1, partition_size)],

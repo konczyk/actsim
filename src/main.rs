@@ -81,7 +81,7 @@ fn run_filter(args: Args) -> io::Result<()> {
 
 fn run_simulation(args: Args) -> io::Result<()> {
     let mut filter_manager = filter_manager::FilterManager::new();
-    let mut sim_manager = sim_manager::SimManager::new();
+    let mut sim_manager = sim_manager::SimManager::new(1_000_000.0);
 
     let mut last_prune = Instant::now();
     let prune_interval = Duration::from_secs(5);
@@ -94,8 +94,7 @@ fn run_simulation(args: Args) -> io::Result<()> {
 
             sim_manager.prune(
                 Duration::from_secs(10),
-                Vector2D::new(0.0, 0.0),
-                15_000.0
+                Vector2D::new(0.0, 0.0)
             );
             filter_manager.prune(
                 Duration::from_secs(args.max_age)
