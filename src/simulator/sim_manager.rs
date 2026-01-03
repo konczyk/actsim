@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use chrono::Local;
@@ -8,6 +8,7 @@ use crate::simulator::model::Aircraft;
 pub struct SimManager {
     pub aircrafts: HashMap<Arc<str>, Aircraft>,
     pub collisions: HashMap<(Arc<str>, Arc<str>), f64>,
+    pub adsb_blacklist: HashSet<Arc<str>>,
     scale: f64,
     radar_range: f64,
 }
@@ -17,6 +18,7 @@ impl SimManager {
         Self {
             aircrafts: HashMap::new(),
             collisions: HashMap::new(),
+            adsb_blacklist: HashSet::new(),
             scale,
             radar_range: (scale * 0.2).powi(2),
         }
@@ -66,14 +68,19 @@ impl SimManager {
                         self.collisions.remove(&key);
                     } else {
                         self.collisions.insert(key, risk);
+                        if plane.position.distance_sq(other.position) < 500f64.powi(2) {
+                            self.adsb_blacklist.insert(i.clone());
+                            self.adsb_blacklist.insert(j.clone());
+                        }
                     }
+
+
                 } else if !self.collisions.is_empty() {
                     let key = if i < j { (i.clone(), j.clone()) } else { (j.clone(), i.clone()) };
                     if self.collisions.contains_key(&key) {
                         self.collisions.remove(&key);
                     }
                 }
-
             }
         }
     }
@@ -104,9 +111,10 @@ impl SimManager {
     pub fn prune(&mut self, max_age: Duration, center: Vector2D) {
         let now = Instant::now();
 
-        self.aircrafts.retain(|_, a| {
-            now.duration_since(a.last_seen) < max_age
-                && a.position.distance(center) < self.scale
+        self.aircrafts.retain(|k, a| {
+            !self.adsb_blacklist.contains(k) &&
+                now.duration_since(a.last_seen) < max_age &&
+                a.position.distance(center) < self.scale
         });
 
         self.collisions.retain(|(a, b), _| {
@@ -129,29 +137,38 @@ impl SimManager {
             .filter_map(|((id1, id2), r)| {
                 if let (Some(p1), Some(p2)) = (self.aircrafts.get(id1), self.aircrafts.get(id2)) {
                     let d = p1.position.distance(p2.position);
-                    Some((id1, id2, d, r))
+                    let urgency = r/d.max(1.0);
+                    Some((id1, id2, d, r, urgency))
                 } else {
                     None
                 }
             })
             .collect();
 
-        display_list.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
+        display_list.sort_by(|a, b| b.4.partial_cmp(&a.4).unwrap());
 
         println!("\n--- 🚨 CRITICAL ALERTS | [{}] ---", now);
-        println!("{:<12} | {:<12} | {:<10} | {:<8}", "Plane A", "Plane B", "Dist (km)", "Risk %");
-        println!("{}", "-".repeat(50));
+        println!("{:<12} | {:<12} | {:<10} | {} | {:<8}", "Plane A", "Plane B", "Dist (km)", "St", "Risk %");
+        println!("{}", "-".repeat(55));
 
         for alert in display_list.iter().take(10) {
+            let icon = if self.adsb_blacklist.contains(alert.0) {
+                "💥"
+            } else if *alert.3 > 0.75 {
+                "🔸"
+            } else {
+                "  "
+            };
             println!(
-                "{:<12} | {:<12} | {:<10.2} | {:.1}%",
+                "{:<12} | {:<12} | {:<10.2} | {} | {:.1}%",
                 alert.0,
                 alert.1,
                 alert.2 / 1000.0,
+                icon,
                 alert.3 * 100.0
             );
         }
-        println!("{}", "-".repeat(50));
+        println!("{}", "-".repeat(55));
     }
 
 }

@@ -91,6 +91,11 @@ fn run_simulation(args: Args) -> io::Result<()> {
     let mut last_reported_risk: HashMap<(Arc<str>, Arc<str>), f64> = HashMap::new();
 
     process_adsb_stream(|packet| {
+        let name = Arc::from(packet.callsign.unwrap_or(packet.id));
+
+        if sim_manager.adsb_blacklist.contains(&name) {
+            return;
+        }
         if last_prune.elapsed() > prune_interval {
             let pending = filter_manager.pending.len();
 
@@ -124,8 +129,7 @@ fn run_simulation(args: Args) -> io::Result<()> {
             last_tick = Instant::now();
         }
 
-        if filter_manager.insert(&packet.id) != FilterResult::Pending {
-            let name = packet.callsign.unwrap_or(packet.id);
+        if filter_manager.insert(&name) != FilterResult::Pending {
             sim_manager.handle_update(
                 Arc::from(name),
                 packet.px, packet.py,
