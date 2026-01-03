@@ -13,7 +13,11 @@ impl Vector2D {
     }
 
     pub fn distance(&self, other: Self) -> f64 {
-        ((other.x - self.x).powi(2) + (other.y - self.y).powi(2)).sqrt()
+        self.distance_sq(other).sqrt()
+    }
+
+    pub fn distance_sq(&self, other: Self) -> f64 {
+        (other.x - self.x).powi(2) + (other.y - self.y).powi(2)
     }
 
     pub fn add_noise(&self, magnitude: f64) -> Self {

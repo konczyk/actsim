@@ -17,7 +17,7 @@ impl SimManager {
             aircrafts: HashMap::new(),
             collisions: HashMap::new(),
             scale,
-            radar_range: scale * 0.2,
+            radar_range: (scale * 0.2).powi(2),
         }
     }
 
@@ -28,9 +28,9 @@ impl SimManager {
 
         let max_speed = 250.0;
         let lookahead_seconds = 30.0;
-        let safety_buffer = (max_speed * 2.0) * lookahead_seconds;
+        let safety_buffer = ((max_speed * 2.0) * lookahead_seconds as f64).powi(2);
 
-        if p.distance(c) > self.radar_range + safety_buffer {
+        if p.distance_sq(c) > self.radar_range + safety_buffer {
             self.aircrafts.remove(&callsign);
             return;
         }
@@ -39,34 +39,49 @@ impl SimManager {
             .and_modify(|a| a.update(p, v))
             .or_insert(Aircraft::new(p, v));
 
-        self.aircrafts.iter()
-            .filter(|(k, _)| **k != callsign)
-            .for_each(|(k, other)| {
-                let d = p.distance(other.position);
-                let key = if callsign < *k {
-                    (callsign.clone(), k.clone())
-                } else {
-                    (k.clone(), callsign.clone())
-                };
-                if d < self.radar_range {
-                    let risk = Self::calculate_risk((p, v), (other.position, other.velocity));
+    }
+
+    pub fn check_collisions(&mut self) {
+        let c = Vector2D::new(0.0, 0.0);
+        let ids: Vec<Arc<str>> = self.aircrafts.keys().cloned().collect();
+
+        for (idx, i) in ids.iter().enumerate() {
+            let plane = &self.aircrafts[i];
+            let plane_in_radar = plane.position.distance_sq(c) < self.radar_range;
+
+            if !plane_in_radar && self.collisions.is_empty() {
+                continue;
+            }
+
+            for j in &ids[idx + 1..] {
+                let other = &self.aircrafts[j];
+                if plane_in_radar &&
+                    other.position.distance_sq(c) < self.radar_range &&
+                    plane.position.distance_sq(other.position) < self.radar_range * 2.0
+                {
+                    let key = if i < j { (i.clone(), j.clone()) } else { (j.clone(), i.clone()) };
+                    let risk = Self::calculate_risk((plane.position, plane.velocity), (other.position, other.velocity));
                     if risk < 0.01 {
                         self.collisions.remove(&key);
                     } else {
                         self.collisions.insert(key, risk);
                     }
-                } else {
-                    self.collisions.remove(&key);
+                } else if !self.collisions.is_empty() {
+                    let key = if i < j { (i.clone(), j.clone()) } else { (j.clone(), i.clone()) };
+                    if self.collisions.contains_key(&key) {
+                        self.collisions.remove(&key);
+                    }
                 }
-            });
 
+            }
+        }
     }
 
     fn calculate_risk(aircraft: (Vector2D, Vector2D), other: (Vector2D, Vector2D)) -> f64 {
         let mut hits = 0;
         let loops = 1000;
         let noise_magnitude = 1.0;
-        let collision_range = 500.0;
+        let collision_range = 500.0f64.powi(2);
 
         for _ in 0..loops {
             let av = aircraft.1.add_noise(noise_magnitude);
@@ -75,7 +90,7 @@ impl SimManager {
             for t in 1..=30 {
                 let ap = aircraft.0 + av * t as f64;
                 let op = other.0 + ov * t as f64;
-                if ap.distance(op) < collision_range {
+                if ap.distance_sq(op) < collision_range {
                     hits += 1;
                     break;
                 }

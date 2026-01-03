@@ -1,14 +1,14 @@
-use std::collections::HashMap;
-use clap::{Parser, ValueEnum};
-use std::io;
-use std::io::BufRead;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use crate::filter::filter_manager;
 use crate::filter::filter_manager::FilterResult;
 use crate::simulator::math::Vector2D;
 use crate::simulator::model::AdsbPacket;
 use crate::simulator::sim_manager;
+use clap::{Parser, ValueEnum};
+use std::collections::HashMap;
+use std::io;
+use std::io::BufRead;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Debug, ValueEnum)]
 #[value(rename_all = "lowercase")]
@@ -85,6 +85,8 @@ fn run_simulation(args: Args) -> io::Result<()> {
 
     let mut last_prune = Instant::now();
     let prune_interval = Duration::from_secs(5);
+    let mut last_tick = Instant::now();
+    let tick_interval  = Duration::from_millis(500);
 
     let mut last_reported_risk: HashMap<(Arc<str>, Arc<str>), f64> = HashMap::new();
 
@@ -111,9 +113,14 @@ fn run_simulation(args: Args) -> io::Result<()> {
                     s.total_bits,
                     s.est_fpr * 100.0,
                     pending,
-                    sim_manager.aircrafts.len()
+                    sim_manager.aircrafts.len(),
                 );
             }
+        }
+
+        if last_tick.elapsed() > tick_interval {
+            sim_manager.check_collisions();
+            last_tick = Instant::now();
         }
 
         if filter_manager.insert(&packet.id) != FilterResult::Pending {
@@ -121,7 +128,7 @@ fn run_simulation(args: Args) -> io::Result<()> {
             sim_manager.handle_update(
                 Arc::from(name),
                 packet.px, packet.py,
-                packet.vx, packet.vy
+                packet.vx, packet.vy,
             );
 
             for (pair, prob) in &sim_manager.collisions {
