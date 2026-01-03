@@ -51,18 +51,21 @@ NEW:    EB9C72
 [...]
 ```
 
-Run simulation on a 200km scale plane, with 4096 aircrafts flying into the center and up to 64 noise packets/s
+Run simulation on a 200km scale plane, with 4096 aircraft flying into the center and up to 64 noise packets/s
 ```shell
-$ ./tools/adsb_gen.py | ./target/release/actsim simulate -d --max-age 60
+$ ./tools/adsb_gen.py | ./target/release/actsim simulate -d
 [...]
-[DEBUG] Layers: 2 | Fill: 4.9% | Bits: 540672 | Est. FPR: 0.22% | Pending: 185 | Tracks: 304
-[DEBUG] Layers: 2 | Fill: 4.9% | Bits: 540672 | Est. FPR: 0.22% | Pending: 283 | Tracks: 312
-ALERT: ("PLN-32-30", "PLN-33-34") -> Risk: 1.00%
-ALERT: ("PLN-32-30", "PLN-33-34") -> Risk: 18.50%
-ALERT: ("PLN-32-34", "PLN-33-30") -> Risk: 18.00%
-ALERT: ("PLN-32-34", "PLN-33-30") -> Risk: 84.00%
-ALERT: ("PLN-32-30", "PLN-33-34") -> Risk: 84.10%
-[DEBUG] Layers: 2 | Fill: 4.9% | Bits: 540672 | Est. FPR: 0.22% | Pending: 218 | Tracks: 312
-ALERT: ("PLN-33-30", "PLN-34-31") -> Risk: 1.30%
+[DEBUG] Layers: 2 | Fill: 5.1% | Bits: 475136 | Est. FPR: 0.29% | Pending: 149 | Tracks: 176
+
+--- 🚨 CRITICAL ALERTS | [21:59:01.415] ---
+Plane A      | Plane B      | Dist (km)  | Risk %  
+--------------------------------------------------
+PLN-31-32    | PLN-32-31    | 4.75       | 100.0%
+PLN-32-33    | PLN-33-32    | 4.75       | 100.0%
+PLN-32-31    | PLN-33-32    | 4.75       | 100.0%
+PLN-31-32    | PLN-32-33    | 4.75       | 100.0%
+PLN-32-31    | PLN-32-33    | 6.71       | 30.9%
+PLN-31-32    | PLN-33-32    | 6.71       | 26.2%
+--------------------------------------------------
 [...]
 ```

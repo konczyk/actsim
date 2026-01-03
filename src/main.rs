@@ -120,6 +120,7 @@ fn run_simulation(args: Args) -> io::Result<()> {
 
         if last_tick.elapsed() > tick_interval {
             sim_manager.check_collisions();
+            sim_manager.print_collision_summary();
             last_tick = Instant::now();
         }
 
@@ -133,7 +134,6 @@ fn run_simulation(args: Args) -> io::Result<()> {
 
             for (pair, prob) in &sim_manager.collisions {
                 if *prob > 0.0 && last_reported_risk.get(pair).map(|x| (x-prob).abs() > 0.05).unwrap_or(true) {
-                    println!("ALERT: {:?} -> Risk: {:.2}%", pair, prob * 100.0);
                     last_reported_risk.insert(pair.clone(), *prob);
                 }
             }

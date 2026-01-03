@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use chrono::Local;
 use crate::simulator::math::Vector2D;
 use crate::simulator::model::Aircraft;
 
@@ -111,6 +112,46 @@ impl SimManager {
         self.collisions.retain(|(a, b), _| {
             self.aircrafts.contains_key(a) && self.aircrafts.contains_key(b)
         })
+    }
+
+    pub fn print_collision_summary(&self) {
+        if self.collisions.is_empty() {
+            return;
+        }
+
+        let now = Local::now().format("%H:%M:%S%.3f");
+
+        let mut entries: Vec<_> = self.collisions.iter().collect();
+        entries.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+
+        let mut display_list: Vec<_> = entries.into_iter()
+            .take(20)
+            .filter_map(|((id1, id2), r)| {
+                if let (Some(p1), Some(p2)) = (self.aircrafts.get(id1), self.aircrafts.get(id2)) {
+                    let d = p1.position.distance(p2.position);
+                    Some((id1, id2, d, r))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        display_list.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
+
+        println!("\n--- 🚨 CRITICAL ALERTS | [{}] ---", now);
+        println!("{:<12} | {:<12} | {:<10} | {:<8}", "Plane A", "Plane B", "Dist (km)", "Risk %");
+        println!("{}", "-".repeat(50));
+
+        for alert in display_list.iter().take(10) {
+            println!(
+                "{:<12} | {:<12} | {:<10.2} | {:.1}%",
+                alert.0,
+                alert.1,
+                alert.2 / 1000.0,
+                alert.3 * 100.0
+            );
+        }
+        println!("{}", "-".repeat(50));
     }
 
 }
