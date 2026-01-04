@@ -24,7 +24,7 @@ impl SimManager {
         }
     }
 
-    pub fn handle_update(&mut self, callsign: Arc<str>, px: f64, py: f64, vx: f64, vy: f64) {
+    pub fn handle_update(&mut self, callsign: Arc<str>, px: f64, py: f64, vx: f64, vy: f64, alt: u16) {
         let p = Vector2D::new(px, py);
         let v = Vector2D::new(vx, vy);
         let c = Vector2D::new(0.0, 0.0);
@@ -40,7 +40,7 @@ impl SimManager {
 
         self.aircrafts.entry(callsign.clone())
             .and_modify(|a| a.update(p, v))
-            .or_insert(Aircraft::new(p, v));
+            .or_insert(Aircraft::new(p, v, alt));
 
     }
 
@@ -59,6 +59,7 @@ impl SimManager {
             for j in &ids[idx + 1..] {
                 let other = &self.aircrafts[j];
                 if plane_in_radar &&
+                    plane.altitude == other.altitude &&
                     other.position.distance_sq(c) < self.radar_range &&
                     plane.position.distance_sq(other.position) < self.radar_range * 2.0
                 {
@@ -73,7 +74,6 @@ impl SimManager {
                             self.adsb_blacklist.insert(j.clone());
                         }
                     }
-
 
                 } else if !self.collisions.is_empty() {
                     let key = if i < j { (i.clone(), j.clone()) } else { (j.clone(), i.clone()) };
@@ -138,37 +138,38 @@ impl SimManager {
                 if let (Some(p1), Some(p2)) = (self.aircrafts.get(id1), self.aircrafts.get(id2)) {
                     let d = p1.position.distance(p2.position);
                     let urgency = r/d.max(1.0);
-                    Some((id1, id2, d, r, urgency))
+                    Some((id1, id2, d, p1.altitude, r, urgency))
                 } else {
                     None
                 }
             })
             .collect();
 
-        display_list.sort_by(|a, b| b.4.partial_cmp(&a.4).unwrap());
+        display_list.sort_by(|a, b| b.5.partial_cmp(&a.5).unwrap());
 
         println!("\n--- 🚨 CRITICAL ALERTS | [{}] ---", now);
-        println!("{:<12} | {:<12} | {:<10} | {} | {:<8}", "Plane A", "Plane B", "Dist (km)", "St", "Risk %");
-        println!("{}", "-".repeat(55));
+        println!("{:<12} | {:<12} | {:<10} | {:<5}| {} | {:<8}", "Plane A", "Plane B", "Dist (km)", "Alt (m)", "St", "Risk %");
+        println!("{}", "-".repeat(63));
 
         for alert in display_list.iter().take(10) {
             let icon = if self.adsb_blacklist.contains(alert.0) {
                 "💥"
-            } else if *alert.3 > 0.75 {
+            } else if *alert.4 > 0.75 {
                 "🔸"
             } else {
                 "  "
             };
             println!(
-                "{:<12} | {:<12} | {:<10.2} | {} | {:.1}%",
+                "{:<12} | {:<12} | {:<10.2} | {:<5} | {} | {:.1}%",
                 alert.0,
                 alert.1,
                 alert.2 / 1000.0,
+                alert.3,
                 icon,
-                alert.3 * 100.0
+                alert.4 * 100.0
             );
         }
-        println!("{}", "-".repeat(55));
+        println!("{}", "-".repeat(63));
     }
 
 }

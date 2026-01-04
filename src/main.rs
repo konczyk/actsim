@@ -134,6 +134,7 @@ fn run_simulation(args: Args) -> io::Result<()> {
                 Arc::from(name),
                 packet.px, packet.py,
                 packet.vx, packet.vy,
+                packet.alt
             );
 
             for (pair, prob) in &sim_manager.collisions {
