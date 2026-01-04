@@ -24,7 +24,7 @@ impl SimManager {
         }
     }
 
-    pub fn handle_update(&mut self, callsign: Arc<str>, px: f64, py: f64, vx: f64, vy: f64, alt: u16) {
+    pub fn handle_update(&mut self, callsign: Arc<str>, px: f64, py: f64, vx: f64, vy: f64, alt: f64) {
         let p = Vector2D::new(px, py);
         let v = Vector2D::new(vx, vy);
         let c = Vector2D::new(0.0, 0.0);
@@ -59,6 +59,7 @@ impl SimManager {
             for j in &ids[idx + 1..] {
                 let other = &self.aircrafts[j];
                 if plane_in_radar &&
+                    (plane.altitude - other.altitude).abs() < 290.0 &&
                     plane.altitude == other.altitude &&
                     other.position.distance_sq(c) < self.radar_range &&
                     plane.position.distance_sq(other.position) < self.radar_range * 2.0

@@ -11,19 +11,19 @@ pub struct AdsbPacket {
     pub py: f64,
     pub vx: f64,
     pub vy: f64,
-    pub alt: u16,
+    pub alt: f64,
 }
 
 pub struct Aircraft {
     pub position: Vector2D,
     pub velocity: Vector2D,
-    pub altitude: u16,
+    pub altitude: f64,
     history: VecDeque<Vector2D>,
     pub last_seen: Instant
 }
 
 impl Aircraft {
-    pub fn new(position: Vector2D, velocity: Vector2D, altitude: u16) -> Self {
+    pub fn new(position: Vector2D, velocity: Vector2D, altitude: f64) -> Self {
         Self { position, velocity, altitude, history: VecDeque::with_capacity(32), last_seen: Instant::now() }
     }
 
