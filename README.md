@@ -53,7 +53,7 @@ NEW:    EB9C72
 
 Run simulation on a 200km scale plane, with 4096 aircraft flying into the center and up to 64 noise packets/s
 ```shell
-$ ./tools/adsb_gen.py | ./target/release/actsim simulate -d
+$ ./tools/adsb_gen.py --planes 4096 --noise 64 | ./target/release/actsim simulate -d
 [...]
 [DEBUG] Layers: 2 | Fill: 5.1% | Bits: 475136 | Est. FPR: 0.29% | Pending: 149 | Tracks: 176
 
