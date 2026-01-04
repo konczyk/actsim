@@ -26,6 +26,14 @@ impl Vector2D {
         let dy = rng.random_range(-magnitude..magnitude);
         Self::new(self.x + dx, self.y + dy)
     }
+
+    pub fn dot(&self, other: Vector2D) -> f64 {
+        self.x * other.x + self.y * other.y
+    }
+
+    pub fn length_sq(&self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
 }
 
 impl Add for Vector2D {

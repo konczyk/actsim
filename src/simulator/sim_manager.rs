@@ -69,7 +69,7 @@ impl SimManager {
                         self.collisions.remove(&key);
                     } else {
                         self.collisions.insert(key, risk);
-                        if plane.position.distance_sq(other.position) < 500f64.powi(2) {
+                        if plane.position.distance_sq(other.position) < 150f64.powi(2) {
                             self.adsb_blacklist.insert(i.clone());
                             self.adsb_blacklist.insert(j.clone());
                         }
@@ -86,26 +86,44 @@ impl SimManager {
     }
 
     fn calculate_risk(aircraft: (Vector2D, Vector2D), other: (Vector2D, Vector2D)) -> f64 {
+        let (p1, v1) = aircraft;
+        let (p2, v2) = other;
+
         let mut hits = 0;
         let loops = 1000;
-        let noise_magnitude = 1.0;
-        let collision_range = 500.0f64.powi(2);
+        let noise_magnitude = 5.0f64;
+        let collision_range = 150.0f64;
+        let collision_range_sq = collision_range.powi(2);
+
+        if p1.distance_sq(p2) <= collision_range_sq {
+            return 1.0;
+        }
 
         for _ in 0..loops {
-            let av = aircraft.1.add_noise(noise_magnitude);
-            let ov = other.1.add_noise(noise_magnitude);
+            let dp = p1 - p2;
+            let dv_initial = v1 - v2;
+            let t_cpa = -(dp.dot(dv_initial) / dv_initial.length_sq()).clamp(0.0, 30.0);
+            let scaled_noise = noise_magnitude.max(noise_magnitude * (1.0 + t_cpa * 0.5));
 
-            for t in 1..=30 {
-                let ap = aircraft.0 + av * t as f64;
-                let op = other.0 + ov * t as f64;
-                if ap.distance_sq(op) < collision_range {
-                    hits += 1;
-                    break;
+            let v1_new = v1.add_noise(scaled_noise);
+            let v2_new = v2.add_noise(scaled_noise);
+
+            let dv = v1_new - v2_new;
+            let dv_sq = dv.length_sq();
+
+            if dv_sq > 0.001 {
+                let t_cpa = -(dp.dot(dv) / dv_sq);
+
+                if t_cpa > 0.0 && t_cpa < 30.0 {
+                    let closest_dist_sq = (dp + dv * t_cpa).length_sq();
+                    if closest_dist_sq < collision_range_sq {
+                        hits += 1;
+                    }
                 }
             }
         }
 
-        hits as f64/loops as f64
+        hits as f64 / loops as f64
     }
 
     pub fn prune(&mut self, max_age: Duration, center: Vector2D) {
