@@ -3,8 +3,8 @@ use rand::Rng;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Vector2D {
-    x: f64,
-    y: f64
+    pub x: f64,
+    pub y: f64
 }
 
 impl Vector2D {
