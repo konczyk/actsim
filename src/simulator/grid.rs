@@ -1,5 +1,6 @@
 use crate::simulator::math::Vector2D;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Debug, PartialEq, Hash, Eq)]
 pub struct GridCoord {
@@ -15,7 +16,7 @@ impl GridCoord {
 
 pub struct SpatialGrid {
     cell_size: i32,
-    pub planes: HashMap<GridCoord, Vec<String>>
+    pub planes: HashMap<GridCoord, Vec<Arc<str>>>
 }
 
 impl SpatialGrid {
@@ -29,17 +30,17 @@ impl SpatialGrid {
         GridCoord::new(x, y)
     }
 
-    pub fn insert(&mut self, id: String, position: Vector2D) {
+    pub fn insert(&mut self, id: Arc<str>, position: Vector2D) {
         let key = self.to_grid_coord(position);
         self.planes.entry(key).and_modify(|v| v.push(id.clone()))
-            .or_insert(vec![id]);
+            .or_insert(vec![id.clone()]);
     }
 
     pub fn clear(&mut self) {
         self.planes.clear();
     }
 
-    pub fn get_nearby_ids(&self, exclude_id: &str, position: Vector2D) -> impl Iterator<Item=&String> {
+    pub fn get_nearby_ids(&self, exclude_id: Arc<str>, position: Vector2D) -> impl Iterator<Item=&Arc<str>> {
         let center = self.to_grid_coord(position);
         (-1..=1).flat_map(move |dx| {
             (-1..=1).map(move |dy| {
@@ -48,7 +49,7 @@ impl SpatialGrid {
         })
         .flat_map(|coord| self.planes.get(&coord))
         .flatten()
-        .filter(move |id| *id != exclude_id)
+        .filter(move |id| ***id != *exclude_id)
     }
 
 }
@@ -73,9 +74,9 @@ mod tests {
         let cell_size = 8;
         let mut grid = SpatialGrid::new(cell_size);
 
-        grid.insert("P1".to_string(), Vector2D::new(5.0, 7.0));
-        grid.insert("P2".to_string(), Vector2D::new(5.0, 7.0));
-        grid.insert("P3".to_string(), Vector2D::new(-9.0, -9.0));
+        grid.insert(Arc::from("P1"), Vector2D::new(5.0, 7.0));
+        grid.insert(Arc::from("P2"), Vector2D::new(5.0, 7.0));
+        grid.insert(Arc::from("P3"), Vector2D::new(-9.0, -9.0));
 
         assert_eq!(2, grid.planes.get(&GridCoord::new(0, 0)).map(|v| v.len()).unwrap_or(100));
         assert_eq!(1, grid.planes.get(&GridCoord::new(-2, -2)).map(|v| v.len()).unwrap_or(100));
@@ -86,14 +87,14 @@ mod tests {
         let cell_size = 8;
         let mut grid = SpatialGrid::new(cell_size);
 
-        grid.insert("P1".to_string(), Vector2D::new(5.0, 7.0));
-        grid.insert("P2".to_string(), Vector2D::new(5.0, 7.0));
-        grid.insert("P3".to_string(), Vector2D::new(-9.0, -9.0));
-        grid.insert("P4".to_string(), Vector2D::new(9.0, 9.0));
+        grid.insert(Arc::from("P1"), Vector2D::new(5.0, 7.0));
+        grid.insert(Arc::from("P2"), Vector2D::new(5.0, 7.0));
+        grid.insert(Arc::from("P3"), Vector2D::new(-9.0, -9.0));
+        grid.insert(Arc::from("P4"), Vector2D::new(9.0, 9.0));
 
         assert_eq!(
-            vec!["P2", "P4"],
-            grid.get_nearby_ids("P1", Vector2D::new(1.0, 1.0)).collect::<Vec<&String>>()
+            vec![&Arc::from("P2"), &Arc::from("P4")],
+            grid.get_nearby_ids(Arc::from("P1"), Vector2D::new(1.0, 1.0)).collect::<Vec<&Arc<str>>>()
         );
 
     }
