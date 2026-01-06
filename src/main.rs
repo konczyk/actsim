@@ -10,6 +10,7 @@ use std::io::BufRead;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+
 #[derive(Clone, Debug, ValueEnum)]
 #[value(rename_all = "lowercase")]
 enum Command {
@@ -81,7 +82,7 @@ fn run_filter(args: Args) -> io::Result<()> {
 
 fn run_simulation(args: Args) -> io::Result<()> {
     let mut filter_manager = filter_manager::FilterManager::new();
-    let mut sim_manager = sim_manager::SimManager::new(200_000.0, args.debug);
+    let mut sim_manager = sim_manager::SimManager::new(200_000.0);
 
     let mut last_prune = Instant::now();
     let prune_interval = Duration::from_secs(5);
@@ -123,9 +124,12 @@ fn run_simulation(args: Args) -> io::Result<()> {
             }
         }
 
-        if last_tick.elapsed() > tick_interval {
+        if last_tick.elapsed() >= tick_interval {
             sim_manager.check_collisions();
             sim_manager.print_collision_summary();
+            if args.debug {
+                println!("[DEBUG] Total Processing Time: {:.1?}", last_tick.elapsed() - tick_interval);
+            }
             last_tick = Instant::now();
         }
 
