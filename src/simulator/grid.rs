@@ -40,7 +40,7 @@ impl SpatialGrid {
         self.planes.clear();
     }
 
-    pub fn get_nearby_ids(&self, exclude_id: Arc<str>, position: Vector2D) -> impl Iterator<Item=&Arc<str>> {
+    pub fn get_nearby_ids(&self, exclude_id: &str, position: Vector2D) -> impl Iterator<Item=&Arc<str>> {
         let center = self.to_grid_coord(position);
         (-1..=1).flat_map(move |dx| {
             (-1..=1).map(move |dy| {
@@ -94,7 +94,7 @@ mod tests {
 
         assert_eq!(
             vec![&Arc::from("P2"), &Arc::from("P4")],
-            grid.get_nearby_ids(Arc::from("P1"), Vector2D::new(1.0, 1.0)).collect::<Vec<&Arc<str>>>()
+            grid.get_nearby_ids("P1", Vector2D::new(1.0, 1.0)).collect::<Vec<&Arc<str>>>()
         );
 
     }

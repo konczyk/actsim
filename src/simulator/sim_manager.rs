@@ -1,26 +1,31 @@
+use crate::simulator::grid::SpatialGrid;
+use crate::simulator::math::Vector2D;
+use crate::simulator::model::Aircraft;
+use chrono::Local;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use chrono::Local;
-use crate::simulator::math::Vector2D;
-use crate::simulator::model::Aircraft;
 
 pub struct SimManager {
-    pub aircrafts: HashMap<Arc<str>, Aircraft>,
+    pub aircraft: HashMap<Arc<str>, Aircraft>,
     pub collisions: HashMap<(Arc<str>, Arc<str>), f64>,
     pub adsb_blacklist: HashSet<Arc<str>>,
+    pub spatial_grid: SpatialGrid,
     scale: f64,
     radar_range: f64,
+    debug: bool,
 }
 
 impl SimManager {
-    pub fn new(scale: f64) -> Self {
+    pub fn new(scale: f64, debug: bool) -> Self {
         Self {
-            aircrafts: HashMap::new(),
+            aircraft: HashMap::new(),
             collisions: HashMap::new(),
             adsb_blacklist: HashSet::new(),
+            spatial_grid: SpatialGrid::new(15_000),
             scale,
             radar_range: (scale * 0.2).powi(2),
+            debug
         }
     }
 
@@ -34,55 +39,68 @@ impl SimManager {
         let safety_buffer = ((max_speed * 2.0) * lookahead_seconds as f64).powi(2);
 
         if p.distance_sq(c) > self.radar_range + safety_buffer {
-            self.aircrafts.remove(&callsign);
+            self.aircraft.remove(&callsign);
             return;
         }
 
-        self.aircrafts.entry(callsign.clone())
-            .and_modify(|a| a.update(p, v))
-            .or_insert(Aircraft::new(p, v, alt));
+        self.aircraft.entry(callsign.clone())
+            .and_modify(|a| a.update(p, v, self.spatial_grid.to_grid_coord(p)))
+            .or_insert(Aircraft::new(p, v, alt, self.spatial_grid.to_grid_coord(p)));
 
     }
 
     pub fn check_collisions(&mut self) {
         let c = Vector2D::new(0.0, 0.0);
-        let ids: Vec<Arc<str>> = self.aircrafts.keys().cloned().collect();
+        self.spatial_grid.clear();
+        let mut cnt = 0;
 
-        for (idx, i) in ids.iter().enumerate() {
-            let plane = &self.aircrafts[i];
-            let plane_in_radar = plane.position.distance_sq(c) < self.radar_range;
+        for (id, plane) in &self.aircraft {
+            self.spatial_grid.insert(id.clone(), plane.position);
+        }
 
-            if !plane_in_radar && self.collisions.is_empty() {
+        for (id, plane) in &self.aircraft {
+            if  plane.position.distance_sq(c) > self.radar_range {
                 continue;
             }
 
-            for j in &ids[idx + 1..] {
-                let other = &self.aircrafts[j];
-                if plane_in_radar &&
-                    (plane.altitude - other.altitude).abs() < 290.0 &&
-                    plane.altitude == other.altitude &&
-                    other.position.distance_sq(c) < self.radar_range &&
-                    plane.position.distance_sq(other.position) < self.radar_range * 2.0
-                {
-                    let key = if i < j { (i.clone(), j.clone()) } else { (j.clone(), i.clone()) };
+            for j in self.spatial_grid.get_nearby_ids(id, plane.position) {
+                if id >= j {
+                    continue;
+                }
+
+                cnt += 1;
+                let other = &self.aircraft[j];
+                let key = (id.clone(), j.clone());
+
+                if plane.altitude == other.altitude {
                     let risk = Self::calculate_risk((plane.position, plane.velocity), (other.position, other.velocity));
                     if risk < 0.01 {
                         self.collisions.remove(&key);
                     } else {
                         self.collisions.insert(key, risk);
                         if plane.position.distance_sq(other.position) < 150f64.powi(2) {
-                            self.adsb_blacklist.insert(i.clone());
+                            self.adsb_blacklist.insert(id.clone());
                             self.adsb_blacklist.insert(j.clone());
                         }
                     }
 
                 } else if !self.collisions.is_empty() {
-                    let key = if i < j { (i.clone(), j.clone()) } else { (j.clone(), i.clone()) };
                     if self.collisions.contains_key(&key) {
                         self.collisions.remove(&key);
                     }
                 }
             }
+        }
+
+        if self.debug {
+            let n = self.aircraft.len();
+            let brute_force = (n * n.saturating_sub(1)) / 2;
+            println!(
+                "[DEBUG] Collision checks: {}/{} | Savings: {:.1}%",
+                cnt,
+                brute_force,
+                (1.0 - (cnt as f64 / brute_force.max(1) as f64)) * 100.0
+            );
         }
     }
 
@@ -130,14 +148,14 @@ impl SimManager {
     pub fn prune(&mut self, max_age: Duration, center: Vector2D) {
         let now = Instant::now();
 
-        self.aircrafts.retain(|k, a| {
+        self.aircraft.retain(|k, a| {
             !self.adsb_blacklist.contains(k) &&
                 now.duration_since(a.last_seen) < max_age &&
                 a.position.distance(center) < self.scale
         });
 
         self.collisions.retain(|(a, b), _| {
-            self.aircrafts.contains_key(a) && self.aircrafts.contains_key(b)
+            self.aircraft.contains_key(a) && self.aircraft.contains_key(b)
         })
     }
 
@@ -154,7 +172,7 @@ impl SimManager {
         let mut display_list: Vec<_> = entries.into_iter()
             .take(20)
             .filter_map(|((id1, id2), r)| {
-                if let (Some(p1), Some(p2)) = (self.aircrafts.get(id1), self.aircrafts.get(id2)) {
+                if let (Some(p1), Some(p2)) = (self.aircraft.get(id1), self.aircraft.get(id2)) {
                     let d = p1.position.distance(p2.position);
                     let urgency = r/d.max(1.0);
                     Some((id1, id2, d, p1.altitude, r, urgency))

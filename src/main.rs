@@ -81,7 +81,7 @@ fn run_filter(args: Args) -> io::Result<()> {
 
 fn run_simulation(args: Args) -> io::Result<()> {
     let mut filter_manager = filter_manager::FilterManager::new();
-    let mut sim_manager = sim_manager::SimManager::new(200_000.0);
+    let mut sim_manager = sim_manager::SimManager::new(200_000.0, args.debug);
 
     let mut last_prune = Instant::now();
     let prune_interval = Duration::from_secs(5);
@@ -118,7 +118,7 @@ fn run_simulation(args: Args) -> io::Result<()> {
                     s.total_bits,
                     s.est_fpr * 100.0,
                     pending,
-                    sim_manager.aircrafts.len(),
+                    sim_manager.aircraft.len(),
                 );
             }
         }
