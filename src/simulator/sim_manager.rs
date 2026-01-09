@@ -174,7 +174,7 @@ impl SimManager {
         display_list.sort_by(|a, b| b.5.partial_cmp(&a.5).unwrap());
 
         println!("\n--- 🚨 CRITICAL ALERTS | [{}] ---", now);
-        println!("{:<12} | {:<12} | {:<10} | {:<5}| {} | {:<8}", "Plane A", "Plane B", "Dist (km)", "Alt (m)", "St", "Risk %");
+        println!("{:<12} | {:<12} | {:<10} | {:<6}| {} | {:<8}", "Plane A", "Plane B", "Dist (km)", "Alt (m)", "St", "Risk %");
         println!("{}", "-".repeat(63));
 
         for alert in display_list.iter().take(10) {
@@ -186,7 +186,7 @@ impl SimManager {
                 "  "
             };
             println!(
-                "{:<12} | {:<12} | {:<10.2} | {:<5} | {} | {:.1}%",
+                "{:<12} | {:<12} | {:<10.2} | {:<6} | {} | {:.1}%",
                 alert.0,
                 alert.1,
                 alert.2 / 1000.0,
