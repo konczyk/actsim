@@ -141,7 +141,7 @@ fn run_simulation(args: Args) -> io::Result<()> {
                 packet.alt
             );
 
-            for (pair, prob) in &sim_manager.collisions {
+            for (pair, (prob, _)) in &sim_manager.collisions {
                 if *prob > 0.0 && last_reported_risk.get(pair).map(|x| (x-prob).abs() > 0.05).unwrap_or(true) {
                     last_reported_risk.insert(pair.clone(), *prob);
                 }
