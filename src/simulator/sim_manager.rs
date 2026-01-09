@@ -166,7 +166,7 @@ impl SimManager {
             .filter_map(|((id1, id2), (r, t))| {
                 if let (Some(p1), Some(p2)) = (self.aircraft.get(id1), self.aircraft.get(id2)) {
                     let d = p1.position.distance(p2.position);
-                    let urgency = r/d.max(1.0);
+                    let urgency = r/(t.unwrap_or(1.0) * d.max(1.0));
                     Some((id1, id2, d, p1.altitude, t, r, urgency))
                 } else {
                     None
@@ -174,7 +174,7 @@ impl SimManager {
             })
             .collect();
 
-        display_list.sort_by(|a, b| b.5.partial_cmp(&a.5).unwrap());
+        display_list.sort_by(|a, b| b.6.partial_cmp(&a.6).unwrap());
 
         println!("\n--- 🚨 CRITICAL ALERTS | [{}] ---", now);
         println!("{:<12} | {:<12} | {:<10} | {:<6} | {} | {:<6} | {:<8}", "Plane A", "Plane B", "Dist (km)", "Alt (m)", "St", "TTI (s)", "Risk %");
