@@ -11,12 +11,14 @@ use std::collections::HashMap;
 use std::io;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::mpsc::Receiver;
 use std::time::{Duration, Instant};
 
-pub struct SimulatorApp {
+pub struct SimApp {
     terminal: DefaultTerminal,
     filter_manager: FilterManager<Arc<str>>,
     sim_manager: SimManager,
+    receiver: Receiver<AdsbPacket>,
     tick_interval: Duration,
     last_tick: Instant,
     prune_interval: Duration,
@@ -25,12 +27,13 @@ pub struct SimulatorApp {
     args: Args,
 }
 
-impl SimulatorApp {
-    pub fn new(args: Args) -> SimulatorApp {
-        SimulatorApp {
+impl SimApp {
+    pub fn new(args: Args, receiver: Receiver<AdsbPacket>) -> SimApp {
+        SimApp {
             terminal: ratatui::init(),
             filter_manager: FilterManager::new(),
             sim_manager: SimManager::new(200_000.0),
+            receiver,
             tick_interval: Duration::from_millis(100),
             last_tick: Instant::now(),
             prune_interval: Duration::from_secs(5),
@@ -123,7 +126,7 @@ impl SimulatorApp {
     }
 }
 
-impl Drop for SimulatorApp {
+impl Drop for SimApp {
     fn drop(&mut self) {
         ratatui::restore();
     }

@@ -1,9 +1,9 @@
 use crate::filter::filter_manager;
 use crate::filter::filter_manager::FilterResult;
 use crate::simulator::model::AdsbPacket;
-use crate::tui::sim_app::SimulatorApp;
+use crate::tui::sim_app::SimApp;
 use clap::{Parser, ValueEnum};
-use std::io;
+use std::{io, thread};
 use std::io::BufRead;
 use std::time::{Duration, Instant};
 
@@ -78,12 +78,18 @@ fn run_filter(args: Args) -> io::Result<()> {
 }
 
 fn run_simulation(args: Args) -> io::Result<()> {
-    let mut app = SimulatorApp::new(args);
-    app.run()?;
+    let (tx, rx) = std::sync::mpsc::channel();
 
-    process_adsb_stream(|packet| {
-        app.handle_packet(packet);
-    })
+    thread::spawn(move || {
+        let _ = process_adsb_stream(|packet| {
+            if tx.send(packet).is_err() {
+                return;
+            }
+        });
+    });
+
+    let mut app = SimApp::new(args, rx);
+    app.run()
 }
 
 fn main() -> io::Result<()>{

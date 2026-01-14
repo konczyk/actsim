@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import math
+import os
 import random
 import time
 import sys
@@ -140,8 +141,8 @@ def main():
 
             sys.stdout.flush()
             time.sleep(args.tick)
-    except KeyboardInterrupt:
-        pass
+    except (BrokenPipeError, KeyboardInterrupt):
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()
