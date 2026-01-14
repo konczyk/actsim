@@ -1,16 +1,11 @@
 use crate::filter::filter_manager;
 use crate::filter::filter_manager::FilterResult;
-use crate::simulator::math::Vector2D;
 use crate::simulator::model::AdsbPacket;
-use crate::simulator::sim_manager;
+use crate::tui::sim_app::SimulatorApp;
 use clap::{Parser, ValueEnum};
-use std::collections::HashMap;
 use std::io;
 use std::io::BufRead;
-use std::sync::Arc;
-use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
-
 
 #[derive(Clone, Debug, ValueEnum)]
 #[value(rename_all = "lowercase")]
@@ -42,6 +37,7 @@ struct Args {
 
 mod filter;
 mod simulator;
+mod tui;
 
 fn process_adsb_stream<F: FnMut(AdsbPacket)>(mut action: F) -> io::Result<()> {
     let stdin = io::stdin();
@@ -82,76 +78,11 @@ fn run_filter(args: Args) -> io::Result<()> {
 }
 
 fn run_simulation(args: Args) -> io::Result<()> {
-    let mut filter_manager = filter_manager::FilterManager::new();
-    let mut sim_manager = sim_manager::SimManager::new(200_000.0);
-
-    let mut last_prune = Instant::now();
-    let prune_interval = Duration::from_secs(5);
-    let mut last_tick = Instant::now();
-    let tick_interval  = Duration::from_millis(500);
-
-    let mut last_reported_risk: HashMap<(Arc<str>, Arc<str>), f64> = HashMap::new();
+    let mut app = SimulatorApp::new(args);
+    app.run()?;
 
     process_adsb_stream(|packet| {
-        let name = Arc::from(packet.callsign.unwrap_or(packet.id));
-
-        if sim_manager.adsb_blacklist.contains(&name) {
-            return;
-        }
-        if last_prune.elapsed() > prune_interval {
-            let pending = filter_manager.pending.len();
-
-            sim_manager.prune(
-                Duration::from_secs(10),
-                Vector2D::new(0.0, 0.0)
-            );
-            filter_manager.prune(
-                Duration::from_secs(args.max_age)
-            );
-            last_reported_risk.retain(|k, _| sim_manager.collisions.contains_key(k));
-
-            last_prune = Instant::now();
-            if args.debug {
-                let s = filter_manager.stats();
-                eprintln!(
-                    "[DEBUG] Layers: {} | Fill: {:.1}% | Bits: {} | Est. FPR: {:.2}% | Pending: {} | Tracks: {}",
-                    s.layer_count,
-                    s.fill_ratio * 100.0,
-                    s.total_bits,
-                    s.est_fpr * 100.0,
-                    pending,
-                    sim_manager.aircraft.len(),
-                );
-            }
-        }
-
-        if last_tick.elapsed() >= tick_interval {
-            sim_manager.check_collisions();
-            sim_manager.print_collision_summary();
-            if args.debug {
-                let total_processing_time = last_tick.elapsed() - tick_interval;
-                let pairs_checked = sim_manager.metrics.pairs_checked.swap(0, Ordering::Relaxed);
-                let throughput = if pairs_checked == 0 { 0 } else { (pairs_checked as f64 / total_processing_time.as_millis() as f64).ceil() as u64 };
-                println!("[DEBUG] Total Processing Time: {:.1?} | Pairs checked: {} | Throughput: {} pairs/ms", total_processing_time, pairs_checked, throughput);
-            }
-            last_tick = Instant::now();
-        }
-
-        if filter_manager.insert(&name) != FilterResult::Pending {
-            sim_manager.handle_update(
-                Arc::from(name),
-                packet.px, packet.py,
-                packet.vx, packet.vy,
-                packet.alt
-            );
-
-            for (pair, (prob, _)) in &sim_manager.collisions {
-                if *prob > 0.0 && last_reported_risk.get(pair).map(|x| (x-prob).abs() > 0.05).unwrap_or(true) {
-                    last_reported_risk.insert(pair.clone(), *prob);
-                }
-            }
-        }
-
+        app.handle_packet(packet);
     })
 }
 
