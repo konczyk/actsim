@@ -4,8 +4,8 @@ use crate::simulator::model::AdsbPacket;
 use crate::simulator::sim_manager::SimManager;
 use crate::Args;
 use crossterm::event::{Event, KeyCode, KeyEventKind};
-use ratatui::layout::Alignment;
-use ratatui::widgets::{Block, BorderType, Borders};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use ratatui::{DefaultTerminal, Frame};
 use std::collections::HashMap;
 use std::io;
@@ -13,6 +13,14 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::time::{Duration, Instant};
+use ratatui::style::{Color, Style};
+use ratatui::text::{Line, Span};
+
+pub struct AppMetrics {
+    pub pairs_checked: u64,
+    pub throughput: u64,
+    pub total_processing_time: Duration,
+}
 
 pub struct SimApp {
     terminal: DefaultTerminal,
@@ -24,6 +32,7 @@ pub struct SimApp {
     prune_interval: Duration,
     last_prune: Instant,
     last_reported_risk: HashMap<(Arc<str>, Arc<str>), f64>,
+    metrics: AppMetrics,
     args: Args,
 }
 
@@ -39,13 +48,35 @@ impl SimApp {
             prune_interval: Duration::from_secs(5),
             last_prune: Instant::now(),
             last_reported_risk: HashMap::new(),
+            metrics: AppMetrics {
+                pairs_checked: 0,
+                throughput: 0,
+                total_processing_time: Duration::from_secs(0),
+            },
             args,
         }
     }
 
     pub fn run(&mut self) -> io::Result<()> {
         loop {
-            self.terminal.draw(|mut frame| Self::draw(&mut frame))?;
+            let mut processed_this_frame = 0;
+            while let Ok(packet) = self.receiver.try_recv() {
+                self.handle_packet(packet);
+                processed_this_frame += 1;
+                if processed_this_frame == 1000 {
+                    break;
+                }
+            }
+            if self.last_tick.elapsed() >= self.tick_interval {
+                self.sim_manager.check_collisions();
+                self.metrics.total_processing_time = self.last_tick.elapsed() - self.tick_interval;
+                self.metrics.pairs_checked = self.sim_manager.metrics.pairs_checked.swap(0, Ordering::Relaxed);
+                self.metrics.throughput = if self.metrics.pairs_checked == 0 { 0 } else { (self.metrics.pairs_checked as f64 / self.metrics.total_processing_time.as_millis() as f64).ceil() as u64 };
+                self.last_tick = Instant::now();
+            }
+
+            self.terminal.draw(|mut frame| Self::draw(&mut frame, &self.metrics))?;
+
             if crossterm::event::poll(Duration::from_millis(16))? {
                 match crossterm::event::read()? {
                     Event::Key(key) if key.kind == KeyEventKind::Press && key.code == KeyCode::Char('q') => return Ok(()),
@@ -55,13 +86,60 @@ impl SimApp {
         }
     }
 
-    fn draw(frame: &mut Frame) {
+    fn draw(frame: &mut Frame, app: &AppMetrics) {
         let block = Block::new()
             .borders(Borders::ALL)
             .title("ACT Simulator")
             .title_alignment(Alignment::Center)
             .border_type(BorderType::Rounded);
         frame.render_widget(block, frame.area());
+
+        let main_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(70),
+                Constraint::Percentage(30),
+            ])
+            .split(frame.area());
+
+        let sidebar_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(6),
+                Constraint::Length(8),
+                Constraint::Min(5),
+            ])
+            .split(main_layout[1]);
+
+        Self::draw_metrics(frame, sidebar_chunks[0], &app);
+    }
+
+
+    fn draw_metrics(frame: &mut Frame, area: Rect, app: &AppMetrics) {
+        let stats_text = vec![
+            Line::from(vec![
+                Span::raw(" Pairs Checked: "),
+                Span::styled(format!("{}", app.pairs_checked), Style::default().fg(Color::Yellow)),
+            ]),
+            Line::from(vec![
+                Span::raw(" Throughput:    "),
+                Span::styled(format!("{} p/ms", app.throughput), Style::default().fg(Color::Green)),
+            ]),
+            Line::from(vec![
+                Span::raw(" Tick Time:     "),
+                Span::styled(
+                    format!("{:.1?}", app.total_processing_time),
+                    Style::default().fg(if app.total_processing_time.as_millis() > 50 { Color::Red } else { Color::Cyan })
+                ),
+            ]),
+        ];
+
+        let block = Block::default()
+            .title(" System Metrics ")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Gray));
+
+        frame.render_widget(Paragraph::new(stats_text).block(block), area);
     }
 
     pub fn handle_packet(&mut self, packet: AdsbPacket) {
@@ -84,6 +162,7 @@ impl SimApp {
 
             self.last_prune = Instant::now();
             if self.args.debug {
+                /*
                 let s = self.filter_manager.stats();
                 eprintln!(
                     "[DEBUG] Layers: {} | Fill: {:.1}% | Bits: {} | Est. FPR: {:.2}% | Pending: {} | Tracks: {}",
@@ -94,19 +173,8 @@ impl SimApp {
                     pending,
                     self.sim_manager.aircraft.len(),
                 );
+                 */
             }
-        }
-
-        if self.last_tick.elapsed() >= self.tick_interval {
-            self.sim_manager.check_collisions();
-            self.sim_manager.print_collision_summary();
-            if self.args.debug {
-                let total_processing_time = self.last_tick.elapsed() - self.tick_interval;
-                let pairs_checked = self.sim_manager.metrics.pairs_checked.swap(0, Ordering::Relaxed);
-                let throughput = if pairs_checked == 0 { 0 } else { (pairs_checked as f64 / total_processing_time.as_millis() as f64).ceil() as u64 };
-                println!("[DEBUG] Total Processing Time: {:.1?} | Pairs checked: {} | Throughput: {} pairs/ms", total_processing_time, pairs_checked, throughput);
-            }
-            self.last_tick = Instant::now();
         }
 
         if self.filter_manager.insert(&name) != FilterResult::Pending {

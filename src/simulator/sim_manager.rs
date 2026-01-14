@@ -156,55 +156,55 @@ impl SimManager {
         })
     }
 
-    pub fn print_collision_summary(&self) {
-        if self.collisions.is_empty() {
-            return;
-        }
-
-        let now = Local::now().format("%H:%M:%S%.3f");
-
-        let mut entries: Vec<_> = self.collisions.iter().collect();
-        entries.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
-
-        let mut display_list: Vec<_> = entries.into_iter()
-            .take(20)
-            .filter_map(|((id1, id2), (r, t))| {
-                if let (Some(p1), Some(p2)) = (self.aircraft.get(id1), self.aircraft.get(id2)) {
-                    let d = p1.position.distance(p2.position);
-                    let urgency = r/(t.unwrap_or(1.0) * d.max(1.0));
-                    Some((id1, id2, d, p1.altitude, t, r, urgency))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        display_list.sort_by(|a, b| b.6.partial_cmp(&a.6).unwrap());
-
-        println!("\n--- 🚨 CRITICAL ALERTS | [{}] ---", now);
-        println!("{:<12} | {:<12} | {:<10} | {:<6} | {} | {:<6} | {:<8}", "Plane A", "Plane B", "Dist (km)", "Alt (m)", "St", "TTI (s)", "Risk %");
-        println!("{}", "-".repeat(74));
-
-        for alert in display_list.iter().take(10) {
-            let icon = if self.adsb_blacklist.contains(alert.0) {
-                "💥"
-            } else if *alert.5 > 0.75 {
-                "🔸"
-            } else {
-                "  "
-            };
-            println!(
-                "{:<12} | {:<12} | {:<10.2} | {:<7} | {} | {:<7} | {:.1}%",
-                alert.0,
-                alert.1,
-                alert.2 / 1000.0,
-                alert.3,
-                icon,
-                alert.4.map(|x| format!("{:.1}", x)).unwrap_or("".to_string()),
-                alert.5 * 100.0
-            );
-        }
-        println!("{}", "-".repeat(74));
-    }
+    // pub fn print_collision_summary(&self) {
+    //     if self.collisions.is_empty() {
+    //         return;
+    //     }
+    //
+    //     let now = Local::now().format("%H:%M:%S%.3f");
+    //
+    //     let mut entries: Vec<_> = self.collisions.iter().collect();
+    //     entries.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+    //
+    //     let mut display_list: Vec<_> = entries.into_iter()
+    //         .take(20)
+    //         .filter_map(|((id1, id2), (r, t))| {
+    //             if let (Some(p1), Some(p2)) = (self.aircraft.get(id1), self.aircraft.get(id2)) {
+    //                 let d = p1.position.distance(p2.position);
+    //                 let urgency = r/(t.unwrap_or(1.0) * d.max(1.0));
+    //                 Some((id1, id2, d, p1.altitude, t, r, urgency))
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //         .collect();
+    //
+    //     display_list.sort_by(|a, b| b.6.partial_cmp(&a.6).unwrap());
+    //
+    //     println!("\n--- 🚨 CRITICAL ALERTS | [{}] ---", now);
+    //     println!("{:<12} | {:<12} | {:<10} | {:<6} | {} | {:<6} | {:<8}", "Plane A", "Plane B", "Dist (km)", "Alt (m)", "St", "TTI (s)", "Risk %");
+    //     println!("{}", "-".repeat(74));
+    //
+    //     for alert in display_list.iter().take(10) {
+    //         let icon = if self.adsb_blacklist.contains(alert.0) {
+    //             "💥"
+    //         } else if *alert.5 > 0.75 {
+    //             "🔸"
+    //         } else {
+    //             "  "
+    //         };
+    //         println!(
+    //             "{:<12} | {:<12} | {:<10.2} | {:<7} | {} | {:<7} | {:.1}%",
+    //             alert.0,
+    //             alert.1,
+    //             alert.2 / 1000.0,
+    //             alert.3,
+    //             icon,
+    //             alert.4.map(|x| format!("{:.1}", x)).unwrap_or("".to_string()),
+    //             alert.5 * 100.0
+    //         );
+    //     }
+    //     println!("{}", "-".repeat(74));
+    //}
 
 }
