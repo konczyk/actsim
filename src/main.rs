@@ -129,7 +129,10 @@ fn run_simulation(args: Args) -> io::Result<()> {
             sim_manager.check_collisions();
             sim_manager.print_collision_summary();
             if args.debug {
-                println!("[DEBUG] Total Processing Time: {:.1?} | Pairs checked: {}", last_tick.elapsed() - tick_interval, sim_manager.metrics.pairs_checked.swap(0, Ordering::Relaxed));
+                let total_processing_time = last_tick.elapsed() - tick_interval;
+                let pairs_checked = sim_manager.metrics.pairs_checked.swap(0, Ordering::Relaxed);
+                let throughput = if pairs_checked == 0 { 0 } else { (pairs_checked as f64 / total_processing_time.as_millis() as f64).ceil() as u64 };
+                println!("[DEBUG] Total Processing Time: {:.1?} | Pairs checked: {} | Throughput: {} pairs/ms", total_processing_time, pairs_checked, throughput);
             }
             last_tick = Instant::now();
         }
