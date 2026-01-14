@@ -142,26 +142,26 @@ mod tests {
     #[test]
     fn test_sbf_positive() {
         let mut bf = ScalableBloomFilter::new();
-        let input = gen_input(512);
+        let input = gen_input(2048);
         input.iter().for_each(|i| bf.insert(i));
 
         for i in input {
-            assert_eq!(true, bf.contains(&i), "input {i}");
+            assert!(bf.contains(&i), "input {i}");
         }
-        assert_eq!(true, bf.filters.len() > 1)
+        assert!(bf.filters.len() > 1)
     }
 
     #[test]
     fn test_sbf_negative() {
         let mut bf = ScalableBloomFilter::new();
-        let input = gen_input(256);
+        let input = gen_input(2048);
         input.iter().for_each(|i| bf.insert(i));
 
         let neg_input = gen_input(1);
         for i in neg_input {
             assert_eq!(false, bf.contains(&i), "input {i}");
         }
-        assert_eq!(true, bf.filters.len() > 1)
+        assert!(bf.filters.len() > 1)
     }
 
     #[test]
@@ -170,7 +170,7 @@ mod tests {
         for i in input {
             let mut bf = BloomFilter::new(128, 4, 1, 32);
             bf.insert(&i);
-            assert_eq!(true, bf.contains(&i), "input {i}");
+            assert!(bf.contains(&i), "input {i}");
             assert_eq!(4, bf.bits.iter().map(|x| x.count_ones()).sum::<u32>())
         }
     }
