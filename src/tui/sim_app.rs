@@ -7,6 +7,7 @@ use crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
+use ratatui::widgets::canvas::Canvas;
 use ratatui::widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table};
 use ratatui::{DefaultTerminal, Frame};
 use std::collections::HashMap;
@@ -37,11 +38,14 @@ pub struct SimApp {
 }
 
 impl SimApp {
+
+    const SCALE: f64 = 200_000.0;
+
     pub fn new(args: Args, receiver: Receiver<AdsbPacket>) -> SimApp {
         SimApp {
             terminal: ratatui::init(),
             filter_manager: FilterManager::new(),
-            sim_manager: SimManager::new(200_000.0),
+            sim_manager: SimManager::new(Self::SCALE),
             receiver,
             tick_interval: Duration::from_millis(100),
             last_tick: Instant::now(),
@@ -68,6 +72,7 @@ impl SimApp {
                 }
             }
             if self.last_tick.elapsed() >= self.tick_interval {
+                self.sim_manager.colliding.clear();
                 self.sim_manager.check_collisions();
                 self.metrics.total_processing_time = self.last_tick.elapsed() - self.tick_interval;
                 self.metrics.pairs_checked = self.sim_manager.metrics.pairs_checked.swap(0, Ordering::Relaxed);
@@ -102,6 +107,8 @@ impl SimApp {
             ])
             .split(frame.area());
 
+        Self::draw_radar(frame, main_layout[0], sim_manager);
+
         let sidebar_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -116,6 +123,30 @@ impl SimApp {
         Self::draw_alerts(frame, sidebar_chunks[2], &sim_manager);
     }
 
+    fn draw_radar(frame: &mut Frame, area: Rect, sim_manager: &SimManager) {
+        let range = sim_manager.radar_range.sqrt()*1.1;
+
+        let canvas = Canvas::default()
+            .block(Block::default()
+                .title(" [RADAR SCOPE] ")
+                .title_style(Style::default().add_modifier(Modifier::BOLD))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default()))
+            .x_bounds([-range, range])
+            .y_bounds([-range, range])
+            .paint(|ctx| {
+
+                for (id, aircraft) in &sim_manager.aircraft {
+                    let color = if sim_manager.colliding.contains(id) { Color::Red } else { Color::Green };
+
+                    ctx.print(aircraft.position.x, aircraft.position.y,
+                        Span::styled("✦", Style::default().fg(color)));
+                }
+            });
+
+        frame.render_widget(canvas, area);
+    }
 
     fn draw_metrics(frame: &mut Frame, area: Rect, app: &AppMetrics) {
         let stats_text = vec![

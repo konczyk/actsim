@@ -11,10 +11,11 @@ use std::time::{Duration, Instant};
 pub struct SimManager {
     pub aircraft: HashMap<Arc<str>, Aircraft>,
     pub collisions: HashMap<(Arc<str>, Arc<str>), (f64, Option<f64>)>,
+    pub colliding: HashSet<Arc<str>>,
     pub adsb_blacklist: HashSet<Arc<str>>,
     pub spatial_grid: SpatialGrid,
     scale: f64,
-    radar_range: f64,
+    pub radar_range: f64,
     pub metrics: SimulationMetrics,
 }
 
@@ -23,6 +24,7 @@ impl SimManager {
         Self {
             aircraft: HashMap::new(),
             collisions: HashMap::new(),
+            colliding: HashSet::new(),
             adsb_blacklist: HashSet::new(),
             spatial_grid: SpatialGrid::new(15_000),
             scale,
@@ -89,6 +91,8 @@ impl SimManager {
                 let plane = &self.aircraft[&k.0];
                 let other = &self.aircraft[&k.1];
                 self.collisions.insert(k.clone(), risk);
+                self.colliding.insert(k.0.clone());
+                self.colliding.insert(k.1.clone());
                 if plane.position.distance_sq(other.position) < 150f64.powi(2) {
                     self.adsb_blacklist.insert(k.0.clone());
                     self.adsb_blacklist.insert(k.1.clone());
@@ -154,56 +158,5 @@ impl SimManager {
             self.aircraft.contains_key(a) && self.aircraft.contains_key(b)
         })
     }
-
-    // pub fn print_collision_summary(&self) {
-    //     if self.collisions.is_empty() {
-    //         return;
-    //     }
-    //
-    //     let now = Local::now().format("%H:%M:%S%.3f");
-    //
-    //     let mut entries: Vec<_> = self.collisions.iter().collect();
-    //     entries.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
-    //
-    //     let mut display_list: Vec<_> = entries.into_iter()
-    //         .take(20)
-    //         .filter_map(|((id1, id2), (r, t))| {
-    //             if let (Some(p1), Some(p2)) = (self.aircraft.get(id1), self.aircraft.get(id2)) {
-    //                 let d = p1.position.distance(p2.position);
-    //                 let urgency = r/(t.unwrap_or(1.0) * d.max(1.0));
-    //                 Some((id1, id2, d, p1.altitude, t, r, urgency))
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //         .collect();
-    //
-    //     display_list.sort_by(|a, b| b.6.partial_cmp(&a.6).unwrap());
-    //
-    //     println!("\n--- 🚨 CRITICAL ALERTS | [{}] ---", now);
-    //     println!("{:<12} | {:<12} | {:<10} | {:<6} | {} | {:<6} | {:<8}", "Plane A", "Plane B", "Dist (km)", "Alt (m)", "St", "TTI (s)", "Risk %");
-    //     println!("{}", "-".repeat(74));
-    //
-    //     for alert in display_list.iter().take(10) {
-    //         let icon = if self.adsb_blacklist.contains(alert.0) {
-    //             "💥"
-    //         } else if *alert.5 > 0.75 {
-    //             "🔸"
-    //         } else {
-    //             "  "
-    //         };
-    //         println!(
-    //             "{:<12} | {:<12} | {:<10.2} | {:<7} | {} | {:<7} | {:.1}%",
-    //             alert.0,
-    //             alert.1,
-    //             alert.2 / 1000.0,
-    //             alert.3,
-    //             icon,
-    //             alert.4.map(|x| format!("{:.1}", x)).unwrap_or("".to_string()),
-    //             alert.5 * 100.0
-    //         );
-    //     }
-    //     println!("{}", "-".repeat(74));
-    //}
 
 }
