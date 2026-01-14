@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::io;
 use std::io::BufRead;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 
@@ -128,7 +129,7 @@ fn run_simulation(args: Args) -> io::Result<()> {
             sim_manager.check_collisions();
             sim_manager.print_collision_summary();
             if args.debug {
-                println!("[DEBUG] Total Processing Time: {:.1?}", last_tick.elapsed() - tick_interval);
+                println!("[DEBUG] Total Processing Time: {:.1?} | Pairs checked: {}", last_tick.elapsed() - tick_interval, sim_manager.metrics.pairs_checked.swap(0, Ordering::Relaxed));
             }
             last_tick = Instant::now();
         }

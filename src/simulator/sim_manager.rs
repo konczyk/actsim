@@ -4,8 +4,10 @@ use crate::simulator::model::Aircraft;
 use chrono::Local;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 use rayon::prelude::*;
+use crate::simulator::sim_metrics::SimulationMetrics;
 
 pub struct SimManager {
     pub aircraft: HashMap<Arc<str>, Aircraft>,
@@ -14,6 +16,7 @@ pub struct SimManager {
     pub spatial_grid: SpatialGrid,
     scale: f64,
     radar_range: f64,
+    pub metrics: SimulationMetrics,
 }
 
 impl SimManager {
@@ -25,6 +28,7 @@ impl SimManager {
             spatial_grid: SpatialGrid::new(15_000),
             scale,
             radar_range: (scale * 0.2).powi(2),
+            metrics: SimulationMetrics::new()
         }
     }
 
@@ -65,6 +69,7 @@ impl SimManager {
                 self.spatial_grid.get_nearby_ids(id_i, plane.position)
                     .filter(|id_j| id_i < id_j)
                     .map(|id_j| {
+                        self.metrics.pairs_checked.fetch_add(1, Ordering::Relaxed);
                         let other = &self.aircraft[id_j];
                         let key = (id_i.clone(), id_j.clone());
 
