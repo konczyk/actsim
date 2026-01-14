@@ -8,6 +8,7 @@ pub struct FilterStats {
     pub total_bits: usize,
     pub fill_ratio: f64,
     pub est_fpr: f64,
+    pub pending: usize,
 }
 
 #[derive(Debug, PartialEq)]
@@ -66,6 +67,7 @@ impl<T: Clone + Eq + Hash> FilterManager<T> {
             total_bits,
             fill_ratio: set_bits as f64 / total_bits as f64,
             est_fpr: self.fpr(),
+            pending: self.pending.len(),
         }
     }
 }

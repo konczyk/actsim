@@ -1,13 +1,12 @@
 use crate::simulator::grid::SpatialGrid;
 use crate::simulator::math::Vector2D;
 use crate::simulator::model::Aircraft;
-use chrono::Local;
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use std::sync::atomic::Ordering;
-use std::time::{Duration, Instant};
-use rayon::prelude::*;
 use crate::simulator::sim_metrics::SimulationMetrics;
+use rayon::prelude::*;
+use std::collections::{HashMap, HashSet};
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 pub struct SimManager {
     pub aircraft: HashMap<Arc<str>, Aircraft>,

@@ -5,16 +5,16 @@ use crate::simulator::sim_manager::SimManager;
 use crate::Args;
 use crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, BorderType, Borders, Gauge, Paragraph};
 use ratatui::{DefaultTerminal, Frame};
 use std::collections::HashMap;
 use std::io;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
 use std::sync::mpsc::Receiver;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
-use ratatui::style::{Color, Style};
-use ratatui::text::{Line, Span};
 
 pub struct AppMetrics {
     pub pairs_checked: u64,
@@ -75,7 +75,7 @@ impl SimApp {
                 self.last_tick = Instant::now();
             }
 
-            self.terminal.draw(|mut frame| Self::draw(&mut frame, &self.metrics))?;
+            self.terminal.draw(|mut frame| Self::draw(&mut frame, &self.metrics, &self.filter_manager, &self.sim_manager))?;
 
             if crossterm::event::poll(Duration::from_millis(16))? {
                 match crossterm::event::read()? {
@@ -86,7 +86,7 @@ impl SimApp {
         }
     }
 
-    fn draw(frame: &mut Frame, app: &AppMetrics) {
+    fn draw(frame: &mut Frame, app: &AppMetrics, filter: &FilterManager<Arc<str>>, sim_manager: &SimManager) {
         let block = Block::new()
             .borders(Borders::ALL)
             .title("ACT Simulator")
@@ -112,34 +112,77 @@ impl SimApp {
             .split(main_layout[1]);
 
         Self::draw_metrics(frame, sidebar_chunks[0], &app);
+        Self::draw_filter_status(frame, sidebar_chunks[1], &app, &filter, &sim_manager);
     }
 
 
     fn draw_metrics(frame: &mut Frame, area: Rect, app: &AppMetrics) {
         let stats_text = vec![
             Line::from(vec![
-                Span::raw(" Pairs Checked: "),
-                Span::styled(format!("{}", app.pairs_checked), Style::default().fg(Color::Yellow)),
+                Span::styled(" Pairs Checked: ", Style::default().fg(Color::LightBlue)),
+                Span::styled(format!("{}", app.pairs_checked), Style::default()),
             ]),
             Line::from(vec![
-                Span::raw(" Throughput:    "),
-                Span::styled(format!("{} p/ms", app.throughput), Style::default().fg(Color::Green)),
+                Span::styled(" Throughput:    ", Style::default().fg(Color::LightBlue)),
+                Span::styled(format!("{} p/ms", app.throughput), Style::default()),
             ]),
             Line::from(vec![
-                Span::raw(" Tick Time:     "),
+                Span::styled(" Tick Time:     ", Style::default().fg(Color::LightBlue)),
                 Span::styled(
                     format!("{:.1?}", app.total_processing_time),
-                    Style::default().fg(if app.total_processing_time.as_millis() > 50 { Color::Red } else { Color::Cyan })
+                    Style::default().fg(if app.total_processing_time.as_millis() > 50 { Color::Red } else { Color::default()})
                 ),
             ]),
         ];
 
         let block = Block::default()
             .title(" System Metrics ")
+            .title_style(Style::default().add_modifier(Modifier::BOLD))
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Gray));
 
         frame.render_widget(Paragraph::new(stats_text).block(block), area);
+    }
+
+    fn draw_filter_status(frame: &mut Frame, area: Rect, app: &AppMetrics, filter: &FilterManager<Arc<str>>, sim_manager: &SimManager) {
+        let stats = filter.stats();
+
+        let filled = stats.layer_count.min(10);
+        let bar = format!("[{}{}]", "█".repeat(filled), "░".repeat(10 - filled));
+
+        let stats_text = vec![
+            Line::from(vec![
+                Span::styled(" Layers:  ", Style::default().fg(Color::LightBlue)),
+                Span::styled(bar, Style::default()),
+                Span::styled(format!(" {}", stats.layer_count), Style::default()),
+            ]),
+            Line::from(vec![
+                Span::styled(" Bits:    ", Style::default().fg(Color::LightBlue)),
+                Span::styled(format!("{}", stats.total_bits), Style::default()),
+            ]),
+            Line::from(vec![
+                Span::styled(" Tracks:  ", Style::default().fg(Color::LightBlue)),
+                Span::styled(format!("{}", sim_manager.aircraft.len()), Style::default()),
+            ]),
+            Line::from(vec![
+                Span::styled(" Pending: ", Style::default().fg(Color::LightBlue)),
+                Span::styled(format!("{}", stats.pending), Style::default()),
+            ]),
+            Line::from(vec![
+                Span::styled(" FPR:     ", Style::default().fg(Color::LightBlue)),
+                Span::styled(format!("{:.2}%", stats.est_fpr * 100.0), Style::default()),
+            ]),
+        ];
+
+        let block = Block::default()
+            .title(" [Filter Status] ") // Brackets in title for that "sketch" look
+            .title_style(Style::default().add_modifier(Modifier::BOLD))
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded) // Rounded corners look cleaner
+            .border_style(Style::default());
+
+        frame.render_widget(Paragraph::new(stats_text).block(block), area);
+
     }
 
     pub fn handle_packet(&mut self, packet: AdsbPacket) {
@@ -149,7 +192,6 @@ impl SimApp {
             return;
         }
         if self.last_prune.elapsed() > self.prune_interval {
-            let pending = self.filter_manager.pending.len();
 
             self.sim_manager.prune(
                 Duration::from_secs(10),
