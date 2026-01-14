@@ -7,7 +7,7 @@ use crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Gauge, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table};
 use ratatui::{DefaultTerminal, Frame};
 use std::collections::HashMap;
 use std::io;
@@ -112,7 +112,8 @@ impl SimApp {
             .split(main_layout[1]);
 
         Self::draw_metrics(frame, sidebar_chunks[0], &app);
-        Self::draw_filter_status(frame, sidebar_chunks[1], &app, &filter, &sim_manager);
+        Self::draw_filter_status(frame, sidebar_chunks[1], &filter, &sim_manager);
+        Self::draw_alerts(frame, sidebar_chunks[2], &sim_manager);
     }
 
 
@@ -130,7 +131,7 @@ impl SimApp {
                 Span::styled(" Tick Time:     ", Style::default().fg(Color::LightBlue)),
                 Span::styled(
                     format!("{:.1?}", app.total_processing_time),
-                    Style::default().fg(if app.total_processing_time.as_millis() > 50 { Color::Red } else { Color::default()})
+                    Style::default().fg(if app.total_processing_time.as_millis() > 100 { Color::Red } else { Color::default()})
                 ),
             ]),
         ];
@@ -144,10 +145,10 @@ impl SimApp {
         frame.render_widget(Paragraph::new(stats_text).block(block), area);
     }
 
-    fn draw_filter_status(frame: &mut Frame, area: Rect, app: &AppMetrics, filter: &FilterManager<Arc<str>>, sim_manager: &SimManager) {
+    fn draw_filter_status(frame: &mut Frame, area: Rect, filter: &FilterManager<Arc<str>>, sim_manager: &SimManager) {
         let stats = filter.stats();
 
-        let filled = stats.layer_count.min(10);
+        let filled = (stats.fill_ratio * 100.0).min(10.0) as usize;
         let bar = format!("[{}{}]", "█".repeat(filled), "░".repeat(10 - filled));
 
         let stats_text = vec![
@@ -185,6 +186,55 @@ impl SimApp {
 
     }
 
+    fn draw_alerts(frame: &mut Frame, area: Rect, sim_manager: &SimManager) {
+        let mut entries: Vec<_> = sim_manager.collisions.iter().collect();
+        entries.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+
+        let mut display_list: Vec<_> = entries.into_iter()
+            .take(20)
+            .filter_map(|((id1, id2), (r, t))| {
+                if let (Some(p1), Some(p2)) = (sim_manager.aircraft.get(id1), sim_manager.aircraft.get(id2)) {
+                    let d = p1.position.distance(p2.position);
+                    let urgency = r/(t.unwrap_or(1.0) * d.max(1.0));
+                    Some((id1, id2, d, p1.altitude, t, r, urgency))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        display_list.sort_by(|a, b| b.6.partial_cmp(&a.6).unwrap());
+
+        let rows: Vec<Row> = display_list.iter().take(10).map(|(id1, id2, d, _alt, t, r, _u)| {
+            let icon = if sim_manager.adsb_blacklist.contains(*id1) {
+                "💥"
+            } else if **r > 0.75 {
+                "🔸"
+            } else {
+                "  "
+            };
+            Row::new(vec![
+                Cell::from(format!("{}<->{}", id1, id2)),
+                Cell::from(format!("{:.0}m", d)),
+                Cell::from(format!("{}", icon)),
+                Cell::from(t.map(|x| format!("{:.1}", x)).unwrap_or("".to_string())),
+                Cell::from(format!("{:.0}%", *r * 100.0)),
+            ])
+        }).collect();
+
+        let table = Table::new(rows, [
+            Constraint::Percentage(50),
+            Constraint::Percentage(20),
+            Constraint::Percentage(10),
+            Constraint::Percentage(10),
+            Constraint::Percentage(10),
+        ])
+        .header(Row::new(vec!["ID PAIR", "DIST", "ST", "TTI", "RISK"]).style(Style::default().add_modifier(Modifier::BOLD)))
+        .block(Block::default().title(" [Active Alerts] ").borders(Borders::ALL).border_type(BorderType::Rounded));
+
+        frame.render_widget(table, area);
+    }
+
     pub fn handle_packet(&mut self, packet: AdsbPacket) {
         let name = Arc::from(packet.callsign.unwrap_or(packet.id));
 
@@ -203,20 +253,6 @@ impl SimApp {
             self.last_reported_risk.retain(|k, _| self.sim_manager.collisions.contains_key(k));
 
             self.last_prune = Instant::now();
-            if self.args.debug {
-                /*
-                let s = self.filter_manager.stats();
-                eprintln!(
-                    "[DEBUG] Layers: {} | Fill: {:.1}% | Bits: {} | Est. FPR: {:.2}% | Pending: {} | Tracks: {}",
-                    s.layer_count,
-                    s.fill_ratio * 100.0,
-                    s.total_bits,
-                    s.est_fpr * 100.0,
-                    pending,
-                    self.sim_manager.aircraft.len(),
-                );
-                 */
-            }
         }
 
         if self.filter_manager.insert(&name) != FilterResult::Pending {
